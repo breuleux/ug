@@ -119,7 +119,7 @@ class ASTVisitor:
     def __init__(self, transfer_locations = True):
         self.transfer_locations = transfer_locations
 
-    def visit(self, node):
+    def visit(self, node, **keywords):
         try:
             f = getattr(self, "visit_" + type(node).__name__)
             generic = False
@@ -127,9 +127,9 @@ class ASTVisitor:
             f = self.visit_generic
             generic = True
         if isinstance(node, struct) and not generic:
-            rval = f(node, *node.__l__)
+            rval = f(node, *node.__l__, **keywords)
         else:
-            rval = f(node)
+            rval = f(node, **keywords)
         if self.transfer_locations:
             try:
                 rval = transloc(rval, node)

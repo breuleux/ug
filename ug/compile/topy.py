@@ -174,7 +174,7 @@ class UGToPy(ASTVisitor):
     def visit_if(self, node, test, ift, iff):
         v = transloc(UniqueVar("if_result"), node)
         test = self.visit(test)
-        _if = UGToPyIf2(test, v, self.scope)
+        _if = UGToPyIf(test, v, self.scope)
         _if.visit(ift)
         _if.push()
         _if.visit(iff)
@@ -183,7 +183,7 @@ class UGToPy(ASTVisitor):
 
     def visit_catch(self, node, expr, handler):
         v = transloc(UniqueVar("catch_result"), node)
-        _catch = UGToPyCatch2(v, self.scope)
+        _catch = UGToPyCatch(v, self.scope)
         _catch.visit(expr)
         _catch.push()
         _catch.visit(handler)
@@ -216,10 +216,10 @@ class UGToPy(ASTVisitor):
 
         name = transloc(UniqueVar("class"), node)
 
-        r = UGToPyDef2('__recv__',
-                       pyast.arguments([pyast.arg(str(UniqueVar("_")), None),
-                                        pyast.arg(str(v), None)],
-                                       None, None, [], None, None, [], []))
+        r = UGToPyDef('__recv__',
+                      pyast.arguments([pyast.arg(str(UniqueVar("_")), None),
+                                       pyast.arg(str(v), None)],
+                                      None, None, [], None, None, [], []))
 
         r.visit(build_expr(specs))
 
@@ -339,6 +339,121 @@ class UGToPyCatch(UGToPy):
 
 
 
+
+def _deconstruct2(value, f):
+
+    if isinstance(f, str):
+        return (value,)
+
+    elif isinstance(f, tuple):
+        if isinstance(value, (tuple, list)):
+            t, d = value, {}
+        elif isinstance(value, dict):
+            t, d = (), dict(value)
+        elif isinstance(value, hybrid):
+            t, d = value.tuple, dict(value.dict)
+        else:
+            raise Exception("Not deconstructible")
+
+        nfirst, nlast, keys, dstar, *subf = f
+        results = [_deconstruct2(t[i], subf[i])
+                   for i in range(nfirst)]
+
+        lt = len(t)
+        if nlast is not None:
+            remainder = lt - nfirst
+            if remainder < nlast:
+                raise Exception("not enough")
+            results.append(_deconstruct2(t[nfirst:len(t)-nlast],
+                                        subf[nfirst]))
+            results += [_deconstruct2(t[lt-nlast+i], subf[nfirst+i+1])
+                        for i in range(nlast)]
+        elif lt > nfirst:
+            raise Exception("Expected exactly", nfirst)
+
+        for key, keyf in zip(keys, subf[nfirst + (nlast+1 if nlast is not None else 0):]):
+            results.append(_deconstruct2(d.pop(key), keyf))
+        if dstar:
+            results.append(_deconstruct2(d, subf[-1]))
+        elif d:
+            raise Exception("Extra keys", d)
+
+        return reduce(tuple.__add__, results)
+
+    elif isinstance(f, hs.check):
+        chk, var = f[:]
+        return ((_check(chk, value), chk),)
+
+#     elif isinstance(f, hs.deconstruct
+
+
+
+def _convert_formula(f):
+
+    if isinstance(f, tuple):
+        new = []
+        ranges = [0]
+        keys = []
+        dstar = False
+        saw_assoc = False
+        over = False
+        for entry in f:
+            if over:
+                raise Exception("** must be last")
+            if isinstance(entry, hs.star):
+                if saw_assoc:
+                    raise Exception("=> must be at the end")
+                ranges.append(0)
+                new.append(entry[0])
+            elif isinstance(entry, hs.assoc):
+                saw_assoc = True
+                keys.append(entry[0])
+                new.append(entry[1])
+            elif isinstance(entry, hs.dstar):
+                dstar = True
+                over = True
+                new.append(entry[0])
+            elif saw_assoc:
+                raise Exception("=> must be at the end")
+            else:
+                ranges[-1] += 1
+                new.append(entry)
+        if len(ranges) > 2:
+            raise Exception("More than one *")
+        return (ranges[0],
+                ranges[1] if len(ranges) == 2 else None,
+                tuple(keys),
+                bool(dstar)) + tuple(_convert_formula(x) for x in new)
+
+    elif isinstance(f, hs.deconstruct):
+        return hs.deconstruct(f[0], *_convert_formula(f[1:]))
+
+    elif isinstance(f, hs.check):
+        return hs.check(f[0], _convert_formula(f[1]))
+
+    elif isinstance(f, str):
+        return f
+
+
+class PatternDeconstructor:
+
+    def __init__(self, formula):
+        self.formula = formula
+        self._formula = _convert_formula(formula)
+
+    def __call__(self, value):
+        return _deconstruct2(value, self._formula)
+
+    def __str__(self):
+        return "PatternDeconstructor[%s]" % str(self.formula)
+
+    def __repr__(self):
+        return str(self)
+
+
+
+
+
 class ugobj:
 
     def __call__(self, *args, **kwargs):
@@ -420,6 +535,8 @@ def _check(checker, value):
             return value
         else:
             raise TypeError("Expected %s but got %s" % (checker, type(value)))
+    else:
+        raise TypeError("Cannot check with", checker)
 
 class _check_equal:
     def __init__(self, value):
@@ -493,7 +610,7 @@ def evaluate(ast, source = None):
     # print(ast)
     # py = UGToPyExpr(None).visit(ast)
 
-    ctor = UGToPyDef2("wackadoodle")
+    ctor = UGToPyDef("wackadoodle")
     # ctor = UGToPyModule2()
 
     ctor.visit(ast)
@@ -513,6 +630,8 @@ def evaluate(ast, source = None):
 
     d = {'f': lambda x, y: x + y,
          'l': [1, 2],
+
+         '%%PatternDeconstructor': PatternDeconstructor,
 
          '%%hashstruct': hs,
          '%%index': index,
@@ -535,6 +654,9 @@ def evaluate(ast, source = None):
          # '%%dict_index': _dict_index,
          '%%dict_pop': _dict_pop,
          '%%dict_empty': _dict_empty,
+
+         '%%zip': zip,
+         '%%dict': dict,
 
          '%%ugobj': ugobj,
          }

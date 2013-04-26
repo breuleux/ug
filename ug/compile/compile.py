@@ -140,29 +140,56 @@ def accumulate_sequence(compiler, entries, type, expand_eqassoc = True):
             results += accumulate_sequence(compiler, f(newentry, hs[type](*entries[i+1:])), type, expand_eqassoc)
             break
         elif expand_eqassoc and isinstance(newentry, hs.eqassoc):
+
             lhs, rhs = newentry[:]
 
-            instructions = []
-            # print([len(x) for x in parse_lhs(None, lhs, rhs)])
+            p = ParseLHS(lhs)
+            variables = p.variables
+            deconstructor = p.deconstructor
 
-            for deconstructor, deconstruct, var, value in parse_lhs(None, lhs, rhs):
+            rv = transloc(UniqueVar("assignments"), deconstructor)
+            instructions = [hs2.declare(rv, None),
+                            hs2.assign(rv, build_fcall(deconstructor, rhs))]
 
-                if deconstruct:
-                    instructions.append(hs2.declare(var, None))
-                    instructions.append(hs2.assign(var, recipe("deconstruct", deconstructor, value)))
-                elif var:
-                    instructions.append(hs2.declare(var, deconstructor))
-                    instructions.append(hs2.assign(var, value))
-
-
-                elif deconstructor:
-                    instructions.append(hs2.send(hs.special("check"),
-                                                 hs2.tuple(deconstructor,
-                                                           value)))
+            for i, (variable, handler) in enumerate(variables):
+                entry = recipe("tuple_index", rv, i)
+                if handler:
+                    hv = transloc(UniqueVar(""), handler)
+                    instructions += [hs2.declare(hv, None),
+                                     hs2.assign(hv, recipe("tuple_index", entry, 1)),
+                                     hs2.declare(variable, hv),
+                                     hs2.assign(variable, recipe("tuple_index", entry, 0))]
                 else:
-                    instructions.append(value)
+                    instructions += [hs2.declare(variable, None),
+                                     hs2.assign(variable, entry)]
+
+            instructions.append(hs.value(None))
 
             results += accumulate_sequence(compiler, instructions, type, False)
+
+            # lhs, rhs = newentry[:]
+
+            # instructions = []
+            # # print([len(x) for x in parse_lhs(None, lhs, rhs)])
+
+            # for deconstructor, deconstruct, var, value in parse_lhs(None, lhs, rhs):
+
+            #     if deconstruct:
+            #         instructions.append(hs2.declare(var, None))
+            #         instructions.append(hs2.assign(var, recipe("deconstruct", deconstructor, value)))
+            #     elif var:
+            #         instructions.append(hs2.declare(var, deconstructor))
+            #         instructions.append(hs2.assign(var, value))
+
+
+            #     elif deconstructor:
+            #         instructions.append(hs2.send(hs.special("check"),
+            #                                      hs2.tuple(deconstructor,
+            #                                                value)))
+            #     else:
+            #         instructions.append(value)
+
+            # results += accumulate_sequence(compiler, instructions, type, False)
 
         else:
             results.append(newentry)
@@ -184,48 +211,77 @@ def parse_sequence(compiler, seq):
             k = compiler.xvisit(arg[0])
             v = compiler.xvisit(arg[1])
             dparts[-1].append((k, v))
+
         elif isinstance(arg, hs.eqassoc):
+
             lhs, rhs = arg[:]
 
             if isinstance(lhs, ugstr):
                 dparts[-1].append((hs2.value(lhs),
                                    compiler.xvisit(rhs)))
+
             else:
-                instructions = []
-                variables = []
-                # print([len(x) for x in parse_lhs(None, lhs, rhs)])
-
-                # Use rhsv instead of rhs to avoid name capture
-                rhsv = transloc(UniqueVar("temp"), rhs)
-
-                for deconstructor, deconstruct, var, value in parse_lhs(None, lhs, rhsv):
-                    if isinstance(var, ugstr):
-                        variables.append(var)
-
-                    if deconstruct:
-                        instructions.append(hs2.declare(var, None))
-                        instructions.append(hs2.assign(var, recipe("deconstruct", deconstructor, value)))
-                    elif var:
-                        instructions.append(hs2.declare(var, deconstructor))
-                        instructions.append(hs2.assign(var, value))
-
-                    elif deconstructor:
-                        instructions.append(hs2.send(hs.special("check"),
-                                                     hs2.tuple(deconstructor,
-                                                               value)))
-                    else:
-                        instructions.append(value)
-
-
-                # print(variables)
-
-                instructions.append(hs2.square(*[hs.assoc(hs2.value(variable), variable)
-                                                 for variable in variables]))
-
-                dparts.append(compiler.xvisit(
-                        hs2.begin(hs2.eqassoc(rhsv, rhs), # rhsv <- rhs
-                                  hs2.begin(*instructions))))
+                p = ParseLHS(lhs)
+                variables = p.variables
+                deconstructor = p.deconstructor
+                rv = transloc(UniqueVar("assignments"), deconstructor)
+                vnames = []
+                for v, h in variables:
+                    if h is not None:
+                        raise Exception("cannot type variable here", h)
+                    vnames.append(hs.value(v))
+                expr = hs2.begin(hs2.declare(rv, None),
+                                 hs2.assign(rv, build_fcall(deconstructor, rhs)),
+                                 build_scall("dict", 
+                                             build_scall("zip",
+                                                         hs2.tuple(*vnames),
+                                                         rv)))
+                dparts.append(compiler.xvisit(expr))
                 dparts.append([])
+
+
+
+            # lhs, rhs = arg[:]
+
+            # if isinstance(lhs, ugstr):
+            #     dparts[-1].append((hs2.value(lhs),
+            #                        compiler.xvisit(rhs)))
+            # else:
+            #     instructions = []
+            #     variables = []
+            #     # print([len(x) for x in parse_lhs(None, lhs, rhs)])
+
+            #     # Use rhsv instead of rhs to avoid name capture
+            #     rhsv = transloc(UniqueVar("temp"), rhs)
+
+            #     for deconstructor, deconstruct, var, value in parse_lhs(None, lhs, rhsv):
+            #         if isinstance(var, ugstr):
+            #             variables.append(var)
+
+            #         if deconstruct:
+            #             instructions.append(hs2.declare(var, None))
+            #             instructions.append(hs2.assign(var, recipe("deconstruct", deconstructor, value)))
+            #         elif var:
+            #             instructions.append(hs2.declare(var, deconstructor))
+            #             instructions.append(hs2.assign(var, value))
+
+            #         elif deconstructor:
+            #             instructions.append(hs2.send(hs.special("check"),
+            #                                          hs2.tuple(deconstructor,
+            #                                                    value)))
+            #         else:
+            #             instructions.append(value)
+
+
+            #     # print(variables)
+
+            #     instructions.append(hs2.square(*[hs.assoc(hs2.value(variable), variable)
+            #                                      for variable in variables]))
+
+            #     dparts.append(compiler.xvisit(
+            #             hs2.begin(hs2.eqassoc(rhsv, rhs), # rhsv <- rhs
+            #                       hs2.begin(*instructions))))
+            #     dparts.append([])
 
         else:
             lparts[-1].append(arg)
@@ -537,6 +593,12 @@ def mac_trivial(node, args):
     return hs.value("Macro worked")
 
 def mac_test(node, args):
+
+    p = ParseLHS(args)
+    print(p.variables)
+    print(p.deconstructor)
+    print("======")
+
     # args = [ugstr("a"), ugstr("b"), hs.splice(ugstr("c"), ugstr("d"), expand_in = ["begin", "square"]), ugstr("e")]
     # rval = hs.splice(*args)
     # return rval
@@ -546,7 +608,7 @@ def mac_test(node, args):
     #     return map(hs.value, node[:])
     # return hs.restmacro(f)
 
-    return args
+    return p.deconstructor
 
 
 
@@ -592,6 +654,126 @@ def partition(f, l):
 
 lhs_matcher = patterns.matcher('star', 'dstar', 'assoc_default', 'default', 'assoc')
 dot_matcher = patterns.matcher('dot')
+
+
+
+# x => 'x'
+# A x => #check[A, 'x']
+# [x, y] => ['x', 'y']
+# A [x, y] => #deconstruct[A, 'x', 'y']
+# [x, *y, z] => ['x', #star['y'], 'z']
+# A [B x, C y] => #deconstruct[A, #check[B, 'x'], #check[C, 'y']]
+
+
+def build_fcall(obj, *args):
+    return hs2.send(obj, hs2.tuple(*args))
+
+def build_scall(obj, *args):
+    return build_fcall(hs.special(obj), *args)
+
+
+
+class ParseLHS(ASTVisitor):
+
+    def __init__(self, lhs):
+        super().__init__()
+        self.variables = []
+        dctor = self.visit(lhs, d = None)
+        self.deconstructor = build_scall("PatternDeconstructor", dctor)
+
+    def hash(self, name):
+        return hs.send(hs.special("hashstruct"), hs.value(name))
+
+    def make_check(self, expr, variable):
+        return build_fcall(self.hash("check"), expr, variable)
+
+    def make_deconstruct(self, expr, variables):
+        return build_fcall(self.hash("deconstruct"), expr, *variables)
+
+    def visit_generic(self, node, d = None):
+        raise Exception("invalid lhs", node)
+
+    def visit_ugstr(self, node, d):
+
+        if node == "_":
+            var = None
+        else:
+            var = hs.value(node)
+            self.variables.append((node, d))
+
+        if d is None:
+            return var
+        else:
+            return self.make_check(d, var)
+
+    def visit_value(self, node, value, d):
+        if d is not None:
+            raise Exception("There cannot be a checker for", d)
+        expr = build_scall("check_equal", node)
+        return self.make_check(expr, hs.value(None))
+
+    def visit_juxt(self, node, *args, d):
+        if d is not None:
+            raise Exception("There is already a checker!", d)
+        *dctor, var = args
+        dctor = hs2.juxt(*dctor)
+        return self.visit(var, d = dctor)
+
+    def visit_square(self, node, *args, d):
+        newargs = [self.visit(x, d = None) for x in args]
+        if d is None:
+            return hs2.tuple(*newargs)
+        else:
+            return self.make_deconstruct(d, newargs)
+
+    def visit_oper(self, node, op, x, y, d):
+
+        if op == "*" and x == hs.value(VOID):
+            if not isinstance(y, ugstr):
+                raise Exception("Only plain var right of *")
+            return build_fcall(self.hash("star"), self.visit(y, d = d))
+
+        elif op == "**" and x == hs.value(VOID):
+            if not isinstance(y, ugstr):
+                raise Exception("Only plain var right of **")
+            return build_fcall(self.hash("dstar"), self.visit(y, d = None))
+
+        elif op == "=>":
+            if d is not None:
+                raise Exception("Cannot give a type to whole => expression")
+            if x == hs.value(VOID):
+                if isinstance(y, hs.juxt):
+                    x = y[-1]
+                else:
+                    x = y
+            if not isinstance(x, (ugstr, hs.value)):
+                raise Exception("Only var or value left of =>")
+            return build_fcall(self.hash("assoc"),
+                               x if isinstance(x, hs.value) else hs2.value(x),
+                               self.visit(y, d = None))
+
+        elif op == "." and x == hs.value(VOID):
+            if not isinstance(y, ugstr):
+                raise Exception("Only plain var right of .")
+            return self.visit(hs.value(y), d = d)
+
+        else:
+            raise Exception("invalid lhs", node)
+
+
+
+
+def parse_lhs2(deconstructor, lhs):
+
+    if isinstance(lhs, (ugstr, UniqueVar)):
+        if lhs == '_':
+            return [(deconstructor, False, None, rhs)]
+        else:
+            return [(deconstructor, False, lhs, rhs)]
+
+
+
+
 
 def parse_lhs(deconstructor, lhs, rhs):
 

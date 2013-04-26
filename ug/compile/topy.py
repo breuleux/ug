@@ -41,7 +41,7 @@ ops = {
 
 
 
-class UGToPy2(ASTVisitor):
+class UGToPy(ASTVisitor):
 
     def __init__(self, scope):
         self.scope = scope
@@ -249,7 +249,7 @@ class UGToPy2(ASTVisitor):
 
 
 
-class UGToPyModule2(UGToPy2):
+class UGToPyModule(UGToPy):
 
     def __init__(self):
         self.declares = set()
@@ -265,7 +265,7 @@ class UGToPyModule2(UGToPy2):
 
 
 
-class UGToPyDef2(UGToPy2):
+class UGToPyDef(UGToPy):
 
     def __init__(self, name, args = None):
         self.name = name
@@ -297,7 +297,7 @@ class UGToPyDef2(UGToPy2):
 
 
 
-class UGToPyIf2(UGToPy2):
+class UGToPyIf(UGToPy):
 
     def __init__(self, test, var, scope):
         super().__init__(scope)
@@ -316,7 +316,7 @@ class UGToPyIf2(UGToPy2):
 
 
 
-class UGToPyCatch2(UGToPy2):
+class UGToPyCatch(UGToPy):
 
     def __init__(self, var, scope):
         super().__init__(scope)
@@ -336,377 +336,6 @@ class UGToPyCatch2(UGToPy2):
                                      None,
                                      estmts)],
                 [])
-
-
-
-
-
-
-
-class UGToPy(ASTVisitor):
-
-    def __init__(self, outer_block):
-        self.outer_block = outer_block
-        super().__init__()
-
-    def svisit(self, node):
-        return self.outer_block.visit(node)
-
-    def svisit_wrap(self, node):
-        # node2 = hs['lambda']([], node)
-        # return self.svisit(node2)
-        v = UniqueVar("%%thunk")
-        dfn = UGToPyDef(str(v))
-        dfn.visit(node)
-        self.outer_block.statements.append(dfn.create())
-        return self.xvisit(hs.send(v, hs.tuple()))
-
-    def xvisit(self, node):
-        if isinstance(self, UGToPyExpr):
-            return self.visit(node)
-        else:
-            return UGToPyExpr(self.outer_block).visit(node)
-
-    def xvisit_wrap(self, node):
-        rval = self.xvisit(node)
-        self.statements.append(rval)
-        return rval
-
-    def visit_generic(self, node):
-        raise Exception("unknown node", node)
-
-
-
-
-class UGToPyExpr(UGToPy):
-
-    def visit_ugstr(self, node):
-        return pyast.Name(str(node), pyast.Load())
-
-    def visit_UniqueVar(self, node):
-        return pyast.Name(str(node), pyast.Load())
-
-    def visit_value(self, node, value):
-        if isinstance(value, (int, float)):
-            return pyast.Num(value)
-        elif isinstance(value, str):
-            return pyast.Str(str(value))
-        elif value in (None, True, False):
-            return pyast.Name(str(value), pyast.Load())
-        else:
-            raise Exception("unknown value", value)
-
-    def visit_special(self, node, value):
-        return pyast.Name('%%' + str(value), pyast.Load())
-
-    def visit_tuple(self, node, *args):
-        return pyast.Call(transloc(pyast.Name('%%tuple', pyast.Load()), node),
-                          list(map(self.visit, args)),
-                          [],
-                          None,
-                          None)
-
-    def visit_if(self, node, test, ift, iff):
-        return pyast.IfExp(self.xvisit(test),
-                           self.xvisit(ift),
-                           self.xvisit(iff))
-
-    def visit_send(self, node, obj, msg):
-        if isinstance(obj, (hs.special, hs.value)) and obj in ops:
-            spec = ops[obj]
-            if isinstance(msg, hs.tuple):
-                left, right = msg[:]
-                if left == hs.value(VOID):
-                    return pyast.UnaryOp(spec.unary(), self.visit(right))
-                else:
-                    if getattr(spec, 'compare', False):
-                        return pyast.Compare(self.visit(left),
-                                             [spec.binary()],
-                                             [self.visit(right)])
-                    else:
-                        return pyast.BinOp(self.visit(left),
-                                           spec.binary(),
-                                           self.visit(right))
-        elif isinstance(msg, hs.tuple):
-            return pyast.Call(self.visit(obj),
-                              list(map(self.visit, msg[:])),
-                              [],
-                              None,
-                              None)
-        else:
-            return pyast.Call(pyast.Name('%%send', pyast.Load()),
-                              [self.visit(obj), self.visit(msg)],
-                              [],
-                              None,
-                              None)
-
-    def visit_object(self, node, *specs):
-        return self.svisit_wrap(node)
-
-    def visit_declaring(self, node, variables, body):
-        return self.svisit_wrap(node)
-
-    def visit_begin(self, node, *stmts):
-        return self.svisit_wrap(node)
-
-    def visit_catch(self, node, expr, handler):
-        return self.svisit_wrap(node)
-
-
-
-
-class UGToPyStmt(UGToPy):
-
-    def __init__(self):
-        self.statements = []
-        self.declares = set()
-        self.assigns = set()
-        # following line will set self.outer_block = self
-        super().__init__(self)
-
-    def convert_statements(self, stmts):
-        return [stmt if isinstance(stmt, pyast.stmt) else transloc(pyast.Expr(stmt), stmt)
-                for stmt in stmts]
-
-    def visit_declaring(self, node, variables, body):
-        for v in variables:
-            self.declares.add(v)
-        return self.visit(body)
-
-    def visit_assign(self, node, var, value):
-        self.assigns.add(var)
-        pyvar = transloc(pyast.Name(str(var), pyast.Load()), var)
-        stmt = transloc(pyast.Assign([transloc(pyast.Name(str(var), pyast.Store()), var)],
-                                     self.xvisit(value)), node)
-        self.statements += [stmt,
-                            pyvar]
-        return pyvar
-
-    def visit_begin(self, node, *stmts):
-        # print("pouetpouet")
-        rval = pyast.Name("None", pyast.Load())
-        # print("carcajou")
-        for stmt in stmts:
-            # print("couette", stmt)
-            rval = self.visit(stmt)
-        return rval
-
-    def visit_ugstr(self, node):
-        return self.xvisit_wrap(node)
-
-    def visit_UniqueVar(self, node):
-        return self.xvisit_wrap(node)
-
-    def visit_value(self, node, value):
-        return self.xvisit_wrap(node)
-
-    def visit_special(self, node, value):
-        return self.xvisit_wrap(node)
-
-    def visit_send(self, node, obj, msg):
-        return self.xvisit_wrap(node)
-
-    def visit_tuple(self, node, *args):
-        return self.xvisit_wrap(node)
-
-    def visit_if(self, node, test, ift, iff):
-        v = transloc(UniqueVar("if_result"), node)
-        node = UGToPyIf(test, v)
-        node.visit(ift)
-        node.switch()
-        node.visit(iff)
-        c = node.create()
-        self.statements.append(c)
-        v = self.xvisit(v)
-        self.statements.append(v)
-        return v
-
-    def visit_catch(self, node, expr, handler):
-        v = transloc(UniqueVar("catch_result"), node)
-        node = UGToPyCatch(v)
-        node.visit(expr)
-        node.switch()
-        node.visit(handler)
-        c = node.create()
-        self.statements.append(c)
-        v = self.xvisit(v)
-        self.statements.append(v)
-        return v
-
-    def visit_return(self, node, v):
-        r = pyast.Return(self.xvisit(v))
-        self.statements.append(r)
-        return self.visit(hs.value("unreachable"))
-
-    def visit_object(self, node, v, *specs):
-
-        def build_expr(specs):
-            decl, body = specs[0]
-            if isinstance(decl, hs.declaring):
-                vs, decl_block = decl[:]
-            else:
-                vs, decl_block = [], decl
-                
-            if len(specs) == 1:
-                expr = hs2.begin(decl_block, body)
-            else:
-                expr = hs2.begin(hs2.catch(decl_block,
-                                           hs2["return"](build_expr(specs[1:]))),
-                                 body)
-            return hs2.declaring(vs, expr)
-
-
-        name = transloc(UniqueVar("class"), node)
-
-        r = UGToPyDef('__recv__',
-                      pyast.arguments([pyast.arg(str(UniqueVar("_")), None),
-                                       pyast.arg(str(v), None)],
-                                      None, None, [], None, None, [], []))
-
-        # print(build_expr(specs))
-
-        r.visit(build_expr(specs))
-        # r.statements.append(transloc(hs.woot("whatwhat"), node))
-
-        # r = pyast.FunctionDef(
-        #     '__recv__',
-        #     pyast.arguments([str(v)], None, None, [], None, None, [], [])
-        #     [],
-        #     statements,
-        #     [],
-        #     None
-        #     )
-
-        c = transloc(
-            pyast.ClassDef(
-                str(name),
-                [pyast.Name("%%ugobj", pyast.Load())],
-                [],
-                None,
-                None,
-                [r.create()],
-                []),
-            node)
-
-        self.statements.append(c)
-
-        result = transloc(UniqueVar("result"), node)
-
-        return self.visit(hs2.declaring([result],
-                                        hs2.begin(hs2.assign(result,
-                                                             hs2.send(name, hs.tuple())),
-                                                  result)))
-
-
-
-        # self.declares.add(result)
-
-        # self.statements.append(c)
-        # self.visit(hs2.assign(result,
-        #                       hs2.send(name, hs.tuple())))
-
-        # return self.visit(result)
-
-        # return 12345
-
-
-
-class UGToPyDef(UGToPyStmt):
-
-    def __init__(self, name, args = None):
-        self.name = name
-        self.args = args or pyast.arguments([], None, None, [], None, None, [], [])
-        super().__init__()
-
-    def create(self):
-        statements = [transloc(pyast.Nonlocal([str(x)]), x)
-                      for x in self.assigns if x not in self.declares]
-        # statements += [stmt if isinstance(stmt, pyast.stmt) else transloc(pyast.Expr(stmt), stmt)
-        #                for stmt in self.statements[:-1]]
-        statements += self.convert_statements(self.statements[:-1])
-        last = self.statements[-1]
-        statements.append(transloc(pyast.Return(last), last))
-
-        f = pyast.FunctionDef(
-            self.name,
-            self.args,
-            statements,
-            [],
-            None
-            )
-
-        transloc(f, self.statements[0])
-
-        # f.lineno = 1
-        # f.col_offset = 0
-
-        return f
-
-
-class UGToPyIf(UGToPyStmt):
-
-    def __init__(self, test, var):
-        super().__init__()
-        self.test = self.xvisit(test)
-        self.var = var
-
-    def switch(self):
-        self.statements_if_true = self.statements
-        self.statements = []
-
-    def create(self):
-        tstmts = list(self.statements_if_true)
-        fstmts = list(self.statements)
-
-        var = transloc(pyast.Name(str(self.var), pyast.Store()), self.var)
-
-        for group in [tstmts, fstmts]:
-            # both will contain statements, because the #if node
-            # is always normalized as #if[test, iftrue, iffalse]
-            group[-1] = transloc(pyast.Assign([var], group[-1]),
-                                 group[-1])
-
-        return transloc(pyast.If(self.test,
-                                 self.convert_statements(tstmts),
-                                 self.convert_statements(fstmts)),
-                        self.test)
-
-
-class UGToPyCatch(UGToPyStmt):
-
-    def __init__(self, var):
-        super().__init__()
-        self.var = var
-
-    def switch(self):
-        self.try_statements = self.statements
-        self.statements = []
-
-    def create(self):
-        tstmts = list(self.try_statements)
-        estmts = list(self.statements)
-
-        var = transloc(pyast.Name(str(self.var), pyast.Store()), self.var)
-
-        for group in [tstmts, estmts]:
-            group[-1] = transloc(pyast.Assign([var], group[-1]),
-                                 group[-1])
-
-        return transloc(pyast.TryExcept(
-                self.convert_statements(tstmts),
-                [pyast.ExceptHandler(None,
-                                     None,
-                                     self.convert_statements(estmts))],
-                []),
-                        self.var)
-
-
-
-
-
-
-
-
 
 
 

@@ -42,7 +42,6 @@ from .compile import UniqueVar, hs2
 
 
 exprclasses = hs.Name, hs.Num, hs.Str, hs.Call
-# stmtclasses = ()
 
 class UGToPy(ASTVisitor):
 
@@ -120,7 +119,7 @@ class UGToPy(ASTVisitor):
 
     def visit_tuple(self, node, *args):
         newargs = list(map(self.visit, args))
-        c = hs.Call(transloc(hs.Name('%%tuple', hs.Load()), node),
+        c = hs.Call(transloc(hs.Name('tuple', hs.Load()), node),
                        newargs,
                        [],
                        None,
@@ -153,7 +152,7 @@ class UGToPy(ASTVisitor):
                            None,
                            None)
         else:
-            r = hs.Call(hs.Name('%%send', hs.Load()),
+            r = hs.Call(hs.Name('send', hs.Load()),
                            [self.visit(obj), self.visit(msg)],
                            [],
                            None,
@@ -260,8 +259,6 @@ class UGToPyDef(UGToPy):
             None
             )
 
-        # transloc(f, _statements[0][1])
-
         return f
 
 
@@ -325,184 +322,29 @@ def convert_to_py_ast(ast):
 
 
 
-
-
-
-
-
-class ugobj:
-
-    def __call__(self, *args, **kwargs):
-        if kwargs:
-            if args:
-                return self.__recv__(hybrid(args, kwargs))
-            else:
-                return self.__recv__(kwargs)
-        else:
-            return self.__recv__(args)
-
-    def __getattr__(self, attr):
-        if attr.startswith('__'):
-            return getattr(super(), attr)
-        else:
-            return self.__recv__(attr)
-
-    def __getitem__(self, item):
-        return self.__recv__(index(item))
-
-
-
-# def make_dict(*args):
-#     return dict(args)
-
-# hybrid = anonstruct['']
-
-# def make_hybrid(l, d):
-#     h = hybrid()
-#     h.__l__ = l
-#     h.__d__ = d
-#     return h
-
-
-def _deconstruct(dctor, value):
-    if dctor is None:
-        if isinstance(value, (tuple, list, dict, hybrid)):
-            return value
-        else:
-            raise Exception("Not deconstructible")
-    else:
-        return dctor.__deconstruct__(value)
-
-def _extract_tuple(value, minlen, maxlen):
-    # print(value, minlen, maxlen)
-    if isinstance(value, (tuple, list)):
-        tup = value
-    elif isinstance(value, hybrid):
-        tup = value.tuple
-    elif isinstance(value, (dict)):
-        tup = ()
-    else:
-        raise Exception("No tuple")
-    if len(tup) < minlen:
-        raise Exception("Too small")
-    elif maxlen is not None and len(tup) > maxlen:
-        raise Exception("Too large")
-    else:
-        return tup
-
-def _tuple_index(tup, idx):
-    return tup[idx]
-
-def _tuple_range(tup, start, end):
-    return tup[start:end]
-
-def _extract_dict(value):
-    if isinstance(value, (dict)):
-        dic = value
-    elif isinstance(value, hybrid):
-        dic = value.dict
-    elif isinstance(value, (tuple, list)):
-        dic = {}
-    else:
-        raise Exception("No dict")
-    return dic
-
-def _extract_dict_copy(value):
-    return dict(_extract_dict(value))
-
-def _dict_index(dic, idx):
-    return dic[idx]
-
-def _dict_pop(dic, idx):
-    return dic.pop(idx)
-
-def _dict_empty(dic):
-    if dic:
-        raise Exception("Remaining entries", dic)
-    return True
-
-
-from descr import boxy_terminus
-pr = boxy_terminus()
 def evaluate(ast, source = None):
-    # print(ast)
-    # py = UGToPyExpr(None).visit(ast)
 
-    ctor = UGToPyDef("wackadoodle")
-    # ctor = UGToPyModule2()
+    ctor = UGToPyDef("F")
 
     ctor.visit(ast)
     py = ctor.create()
     py = convert_to_py_ast(py)
-    # print(py)
-    # print(py.args)
+
     if isinstance(py, pyast.expr):
         py = pyast.Expression(py)
     elif isinstance(py, pyast.stmt):
         py = pyast.Module([py])
     py = pyast.fix_missing_locations(py)
 
-    pr(py)
-
-    # pprint(py)
-    # py.lineno = 1
-    # py.col_offset = 1
-    # pprint(py)
-
-    # code = compile(py, # source and source.url or
-    #                "<string>", 'exec')
-
     code = compile(py, source and source.url or "<string>", 'exec')
 
-    d = {'f': lambda x, y: x + y,
-         'l': [1, 2],
-
-         # '%%PatternDeconstructor': PatternDeconstructor,
-
-         # '%%hashstruct': hs,
-         # '%%index': index,
-         '%%tuple': lambda *args: args,
-         '%%send': lib.send,
-
-         # '%%make_hybrid': hybrid,
-         # '%%make_dict': make_dict,
-         # '%%patch_dict': patch_dict,
-         # '%%patch_tuple': patch_tuple,
-
-         # '%%assign': _assign,
-         # '%%deconstruct': _deconstruct,
-         # '%%check': _check,
-         # '%%check_equal': _check_equal,
-         '%%extract_tuple': _extract_tuple,
-         '%%tuple_index': _tuple_index,
-         '%%tuple_range': _tuple_range,
-         # '%%extract_dict': _extract_dict,
-         '%%extract_dict_copy': _extract_dict_copy,
-         # '%%dict_index': _dict_index,
-         '%%dict_pop': _dict_pop,
-         '%%dict_empty': _dict_empty,
-
-         '%%zip': zip,
-         '%%dict': dict,
-
-         '%%ugobj': ugobj,
-
-         'VOID': VOID,
-         }
-    d.update(lib.ug_library)
+    d = dict(lib.ug_library)
 
     exec(code, d)
-    return d['wackadoodle']()
+    return d['F']()
 
 
 def pprint(node, offset = 0):
-
-    # if isinstance(node, pyast.Name):
-    #     print(" " * offset, "Name:" + node.id, getattr(node, 'lineno', 'n/a'), getattr(node, 'col_offset', 'n/a'))
-    # elif isinstance(node, pyast.Num):
-    #     print(" " * offset, "Num:" + str(node.n), getattr(node, 'lineno', 'n/a'), getattr(node, 'col_offset', 'n/a'))
-    # else:
-    #     print(" " * offset, type(node).__name__, getattr(node, 'lineno', 'n/a'), getattr(node, 'col_offset', 'n/a'))
     
     if isinstance(node, pyast.AST):
         print(" " * offset,
@@ -511,66 +353,53 @@ def pprint(node, offset = 0):
               ";".join("%s=%s" % (field, getattr(node, field)) for field in node._fields))
     else:
         raise Exception("Not an AST node", node)
-        # print(" " * offset,
-        #       node)
-
-
 
     for child in pyast.iter_child_nodes(node):
         pprint(child, offset + 4)
 
 
-# S = """1 + 2"""
 
-# py = pyast.parse(S, "meh")
-# pprint(py)
-# code = compile(py, "<string>", 'exec')
-# print(code)
-# print("----------------------")
+# from descr import boxy_terminus
+# pr = boxy_terminus()
+# import ast
+# from descr.registry import types_registry
+# from descr.html import html_boxy, HTMLRuleBuilder
 
+# class ASTDescriber(ast.NodeVisitor):
 
+#     def __init__(self, recurse):
+#         self.recurse = recurse
 
+#     # def generic_visit(self, node):
+#     #     if not isinstance(node, ast.AST):
+#     #         return self.recurse(node)
+#     #     name = type(node).__name__
+#     #     classes = {"@ast.AST", "@AST."+name, "object", "+"+name}
+#     #     results = [classes]
+#     #     for fieldname, child in ast.iter_fields(node):
+#     #         results.append(({"field", "+" + fieldname}, self.visit(child)))
+#     #     return results
 
+#     def generic_visit(self, node):
+#         # if isinstance(node, (int, str, ast.Load, ast.Store)):
+#         #     return []
+#         if not isinstance(node, ast.AST):
+#             return self.recurse(node)
+#         name = type(node).__name__
+#         results = [{"@list", "sequence"},
+#                    name,
+#                    self.recurse(getattr(node, 'lineno', None)),
+#                    #self.recurse(getattr(node, 'col_offset', None))
+#                    ]
+#         for fieldname, child in ast.iter_fields(node):
+#             results.append(self.visit(child))
+#         return results
 
-import ast
-from descr.registry import types_registry
-from descr.html import html_boxy, HTMLRuleBuilder
-
-class ASTDescriber(ast.NodeVisitor):
-
-    def __init__(self, recurse):
-        self.recurse = recurse
-
-    # def generic_visit(self, node):
-    #     if not isinstance(node, ast.AST):
-    #         return self.recurse(node)
-    #     name = type(node).__name__
-    #     classes = {"@ast.AST", "@AST."+name, "object", "+"+name}
-    #     results = [classes]
-    #     for fieldname, child in ast.iter_fields(node):
-    #         results.append(({"field", "+" + fieldname}, self.visit(child)))
-    #     return results
-
-    def generic_visit(self, node):
-        # if isinstance(node, (int, str, ast.Load, ast.Store)):
-        #     return []
-        if not isinstance(node, ast.AST):
-            return self.recurse(node)
-        name = type(node).__name__
-        results = [{"@list", "sequence"},
-                   name,
-                   self.recurse(getattr(node, 'lineno', None)),
-                   #self.recurse(getattr(node, 'col_offset', None))
-                   ]
-        for fieldname, child in ast.iter_fields(node):
-            results.append(self.visit(child))
-        return results
-
-def describe_ast_node(node, recurse):
-    return ASTDescriber(recurse).visit(node)
+# def describe_ast_node(node, recurse):
+#     return ASTDescriber(recurse).visit(node)
 
 
-def setup():
-    types_registry[ast.AST] = describe_ast_node
+# def setup():
+#     types_registry[ast.AST] = describe_ast_node
 
-setup()
+# setup()

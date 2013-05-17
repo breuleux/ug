@@ -610,38 +610,13 @@ class ASTRename(ASTVisitor):
         return hs2["lambda"](variables, body)
 
     def visit_assign(self, node, var, value):
-
-        if isinstance(var, (ugstr, UniqueVar)):
-            v, handle = self.resolve(var)
-            if handle is None:
-                return hs.assign(v, self.visit(value))
-            else:
-                return hs.assign(v, hs2.send(hs.value(lib.check),
-                                             hs2.tuple(self.visit(handle),
-                                                       self.visit(value))))
-
-        # elif isinstance(var, list):
-        #     handles = []
-        #     newvars = []
-        #     for v in var:
-        #         newv, handle = self.resolve(v)
-        #         handles.append(handle)
-        #         newvars.append(newv)
-        #     patt = build_scall(lib.Deconstructor, *handles)
-        #     return hs.assign(newvars, build_fcall(patt, value))
-
+        v, handle = self.resolve(var)
+        if handle is None:
+            return hs.assign(v, self.visit(value))
         else:
-            raise Exception("fix this", node)
-
-            # var = self.visit(var)
-            # if isinstance(var, hs.send):
-            #     var, item = var[:]
-            #     return hs2.send(hs.value(lib.assign),
-            #                     hs2.tuple(self.visit(var),
-            #                               self.visit(item),
-            #                               self.visit(value)))
-            # else:
-            #     raise Exception("Invalid lhs", var)
+            return hs.assign(v, hs2.send(hs.value(lib.check),
+                                         hs2.tuple(self.visit(handle),
+                                                   self.visit(value))))
 
     def visit_declaring(self, node, variables, body):
         variables, body = self.with_declarations(variables, body)

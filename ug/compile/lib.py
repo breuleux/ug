@@ -304,6 +304,8 @@ library_function("pymap")(map)
 library_function(iter)
 library_function(zip)
 
+library_function("VOID")(VOID)
+
 
 @library_function
 def send(obj, msg):

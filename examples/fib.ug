@@ -1,0 +1,15 @@
+
+fib1 =
+    [0] -> 0
+    [1] -> 1
+    [n] -> fib1[n - 1] + fib1[n - 2]
+
+fib2 = [n] ->
+    [a, b] = [0, 1]
+    do ! 1 to n map i ->
+        [a, b] := [b, a + b]
+    b
+
+
+print["The 10th fibonaccy number is", fib1[10]]
+print["The 100th fibonaccy number is", fib2[100]]

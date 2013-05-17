@@ -1,0 +1,163 @@
+
+;; Defining the >>> operator to print its right hand side
+;; The left hand side is Void when used in prefix position
+(>>>) = [_, b] -> print[b]
+
+;; This is just to declare indented blocks
+;; bla bla bla
+;;   bla bla bla
+;;   bla
+;; Translates as
+;; bla bla bla (
+;;   bla bla bla
+;;   bla
+;; )
+block = _ -> None
+
+
+;; Comments
+;; ========
+
+>>> "
+Tuples
+======"
+block
+  t = [1, 2, 3, 4]
+  >>> t
+  >>> t?0
+  >>> t?(1..3)
+  >>> [0, *t, 5, *reversed!t, 0]
+
+
+>>> "
+Dictionaries
+============"
+block
+  d = [a = 1, b = 2, "c" => 3, 1234 => 5678]
+  >>> d
+  >>> d?"a"
+  d?0 := 0
+  >>> d
+  [=> a, => b, **rest] = d
+  >>> [a, b, rest]
+
+
+>>> "
+Hybrids
+======="
+block
+  h = [1, 2, x = 3, y = 4]
+  >>> h
+  >>> [h.tuple, h.dict]
+  [*t, **d] = h
+  >>> [t, d]
+
+
+>>> "
+Lists
+====="
+block
+  li = list! [1, 2, 3, 4]
+  li.append[5]
+  >>> li
+  li?0 := -1
+  >>> li
+
+
+>>> "
+Structures
+=========="
+block
+  >>> #point[1, 2]
+  >>> #point[x = 1, y = 2]
+  p = #person["Peter", age = 27]
+  >>> [p?0, p.age]
+  #person [name, => age] = p
+  >>> [name, age]
+
+
+>>> "
+Attributes and functions
+========================"
+block
+  >>> "hello".replace["e", "u"]
+
+  object = "hello"
+  method = .replace
+  arguments = ["e", "u"]
+  >>> (object method arguments)
+
+
+>>> "
+Function declaration
+===================="
+block
+  inc1 = [n] -> n + 1
+  >>> inc1[6]
+
+  inc2 = n -> n + 1
+  >>> (inc2 6)
+
+  inc3 =
+    int n -> n + 1
+    str s -> s + "+"
+  >>> (inc3 6)
+  >>> (inc3 "6")
+  >>> inc3.a
+
+
+>>> "
+Exceptions
+=========="
+block
+  d = [a = 1, b = 2]
+  >>> (d?"c" !! "key 'c' not found")
+  >>> (1/0 !! ZeroDivisionError e -> e)
+  >>> (d?(1/0) !! (
+           KeyError _ -> "the problem is a key not found"
+           ZeroDivisionError _ -> "the problem is a division by zero"
+       ))
+  >>> (raise Exception["yay"] !! e -> e)
+
+
+>>> "
+Conditionals
+============"
+block
+  a = -1
+  if (a > 0):
+    >>> "positive"
+  elif (a < 0):
+    >>> "negative"
+  else:
+    >>> "zero"
+  if[True, >>> True, >>> False]
+
+
+>>> "
+Looping
+======="
+block
+  [1, 2, 3, 4, 5] each i -> >>> i
+  squares = 1 to 10 map i -> i * i
+  >>> squares
+  >>> list[squares]
+  results = list! [0, 1, 2, "", "a", None] map
+      x when not x -> "zero"
+      x -> "nonzero"
+  >>> results
+
+
+>>> "
+Matching
+========"
+
+block
+  match "hello!":
+      x when x.endswith["!"] ->
+          >>> "exclamative"
+      x when x.endswith["?"] ->
+          >>> "interrogative"
+      _ ->
+          >>> "unknown"
+

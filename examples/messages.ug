@@ -1,0 +1,84 @@
+
+inrange = [low, high] ->
+    ;; Tests if a value is between low and high
+    [x] ->
+        if (x >= low and x =< high):
+            x
+        else:
+            raise TypeError["Not in range"]
+
+
+myobj =
+
+    ;; Direct reception of integers
+    ;; Called like: myobj 0, myobj(0)
+    0 -> "Received zero"
+    @inrange[1, 10] i -> "Received an integer between 1 and 10"
+    int i -> "Received integer: " + str[i]
+
+    ;; Direct reception of strings
+    ;; Python equivalent: __getattr__
+    ;; Called like: myobj "attr", myobj("attr"), myobj .attr, myobj(.attr)
+    .special -> "Received 'special'"
+    str s -> "Received string: " + s
+
+    ;; Called with argument tuple
+    ;; Python equivalent: __call__
+    ;; Called like: myobj[x], myobj([x]), myobj[x, *args], etc.
+    [a] -> "Received one argument: " + str[a]
+    [int a, str b] -> "Received int and str: " + str[[a, b]]
+    [str a, int b] -> "Received str and int: " + str[[a, b]]
+    [a, b] -> "Received two arguments: " + str[[a, b]]
+    [a, b, c, d = "Not given"] -> "Received three or four arguments: " + str[[a, b, c, d]]
+    [*args] -> "Received at least five arguments: " + str[args]
+
+    ;; Called with keywords
+    ;; Python equivalent: __call__
+    ;; Called like: myobj[a = 1, b = 2], myobj([a = 1, b = 2])
+    [=> x, => y] -> "Received x and y: " + str[[x, y]]
+    [=> a, => b = None] -> "Received a and maybe b: " + str[[a, b]]
+    [name => var] -> "Received argument of name 'name' in variable 'var' with value " + str[var]
+    [num => @abs num] -> "Received a number with absolute value " + str[num]
+    [**args] -> "Received keywords: " + str[args]
+
+    ;; Called with a structure
+    ;; Python equivalent: __recv__ (nonstandard)
+    ;; Called like: myobj #something[...], myobj(#something[...])
+    #point [x, y] -> "Received point with coordinates: " + str[[x, y]]
+    #point [**coord] -> "Received point with named coordinates: " + str[coord]
+    #line [p1 => #point [int x1, int y1], p2 => #point [int x2, int y2]] ->
+        "Received line from " + str[[x1, y1]] + " to " + str[[x2, y2]]
+
+    ;; Some structures are special
+    #assign [prop, value] ->
+        print["Trying to set property", repr[prop], "to", repr[value]]
+
+    ;; Called with anything
+    ;; Python equivalent: __recv__ (nonstandard)
+    x -> "Nothing matched: " + str[x]
+
+
+tests = [
+    0, 10, 11
+    "hello", .method, .special
+    [1], [1, "a"], ["a", 1], [1, 2]
+    [1, 2, 3], [1, 2, 3, 4],
+    [100, 2r1_100_100, 3r10_201, 16r64, 30r3A] ;; 100 in bases 10, 2, 3, 16 and 30
+    [x = 8, y = 16], [x = 8, y = 16, z = 20]
+    [a = 7]
+    [name = "name"]
+    [num = -8]
+    #point[10, 12], #point[x = 10, y = 12, z = 15]
+    #line[p1 = #point[0, 0], p2 = #point[100, 100]]
+    object[]
+]
+
+tests each entry ->
+   print[myobj entry]
+
+myobj.x := 1
+myobj[0] := 2
+myobj?7 := 3
+myobj object[] := 4
+attr = "someattr"
+myobj attr := 5

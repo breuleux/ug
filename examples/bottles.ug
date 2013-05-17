@@ -1,0 +1,18 @@
+
+nbottles =
+    [0] -> "No more bottles"
+    [1] -> "One bottle"
+    [n] -> str[n] + " bottles"
+
+action =
+    [0] -> "Go to the store and buy some more,"
+    [n] -> "Take one down and pass it around,"
+
+total = 99
+total to -1 by -1 each i ->
+    print[nbottles[i], "of beer on the wall,"
+          nbottles[i].lower[], "of beer."]
+    print[action[i], nbottles[(i - 1) mod (total + 1)].lower[]
+          "of beer on the wall."]
+    print[]
+

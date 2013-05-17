@@ -106,8 +106,8 @@ def pretty_rules():
     rules.css_color(".shortheader", "#88f")
     rules.css_padding(".shortheader", "3px")
 
-    # VOID
-    rules.hide(".{@VOID}")
+    # # VOID
+    # rules.hide(".{@VOID}")
 
     # UniqueVar
     rules.builder_for(".{@UniqueVar}") \

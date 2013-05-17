@@ -122,7 +122,10 @@ standard_matchers = [
     subtok_rule("i", rx_without("in", chr_id), ["infix", 0]),
     subtok_rule("t", rx_without("to", chr_id), ["infix", 0]),
     subtok_rule("b", rx_without("by", chr_id), ["infix", 0]),
+    subtok_rule("m", rx_without("mod", chr_id), ["infix", 0]),
     subtok_rule("m", rx_without("map", chr_id), ["infix", 0]),
+    subtok_rule("e", rx_without("each", chr_id), ["infix", 0]),
+    subtok_rule("w", rx_without("when", chr_id), ["infix", 0]),
 
     # Identifiers
     subtok_rule(chr_id, rx_choice(chr_id_lead) + rx_choice(chr_id) + "*", ["id", "id", 0]),
@@ -177,15 +180,22 @@ def lreplace(l, old, new):
 # subtok_normal yields INDENT tokens (postprocessed to create indented blocks)
 # whereas subtok_inbrack yields NL tokens (which essentially reduce to commas)
 
+whitespace_re = re.compile(" *(;[^\n]*)?")
+
+def extract_indent(match):
+    return len(match.split("\n")[-1])
+
 subtok_normal = SubTokenizer(
     lreplace(standard_matchers,
              "nl_insert_point",
-             subtok_rule("\n", "\n *", ["infix", "INDENT", lambda match: len(match[1:])])))
+             subtok_rule("\n", "(?:\n *)+", ["infix", "INDENT", extract_indent])),
+    whitespace_re)
 
 subtok_inbrack = SubTokenizer(
     lreplace(standard_matchers,
              "nl_insert_point",
-             subtok_rule("\n", "\n *", ["infix", "NL", lambda match: len(match[1:])])))
+             subtok_rule("\n", "(?:\n *)+", ["infix", "NL", extract_indent])),
+    whitespace_re)
 
 # subtok_string parses the insides of strings. We switch to it upon
 # seeing the " token, and pop out when we see another " token.
@@ -195,7 +205,8 @@ subtok_inbrack = SubTokenizer(
 subtok_string = SubTokenizer([
         subtok_rule(True, "[^\"]+", ["id", "str", 0], ws = (False, False)),
         subtok_rule('"', "(\")\"", ["id", "str", 1], ws = (False, False)),
-        subtok_rule('"', "\"", ["suffix", 0], ws = (False, True), action = ["pop"])])
+        subtok_rule('"', "\"", ["suffix", 0], ws = (False, True), action = ["pop"])],
+    whitespace_re)
 
 
 def tokenizer_plus_indent(tokenizer):

@@ -16,16 +16,17 @@ def build_op_groups():
         OperatorGroup("wjuxt", "X W Y"),
 
         OperatorGroup("pfx", "._Y", "#_Y", "?_Y"),
+        OperatorGroup("deco", "@_Y"),
 
         OperatorGroup("add", "X_+_Y", "X_-_Y"),
-        OperatorGroup("mul", "X_*_Y", "X_/_Y", "X_//_Y", "X_%_Y"),
+        OperatorGroup("mul", "X_*_Y", "X_/_Y", "X_//_Y", "X_%_Y", "X_mod_Y"),
         OperatorGroup("unary", "+_Y", "-_Y", "~_Y"),
         OperatorGroup("pow", "X_**_Y"),
 
         OperatorGroup("range", "X_.._Y", "X_..", ".._Y", "X_to_Y"),
         OperatorGroup("by", "X_by_Y"),
         OperatorGroup("in", "X_in_Y"),
-        OperatorGroup("map", "X_map_Y"),
+        OperatorGroup("map", "X_map_Y", "X_each_Y"),
 
         OperatorGroup("binor", "X_|_Y"),
         OperatorGroup("binxor", "X_^_Y"),
@@ -36,12 +37,13 @@ def build_op_groups():
         OperatorGroup("or", "X_or_Y"),
 
         OperatorGroup("cmp",
-                      "X_<_Y", de("X_=<_Y"), "X_==_Y",
-                      "X_>_Y", de("X_>=_Y"), "X_!=_Y"),
+                      "X_<_Y", "X_=<_Y", "X_==_Y",
+                      "X_>_Y", "X_>=_Y", "X_!=_Y"),
 
         OperatorGroup("pr", de("<>_Y")),
-        OperatorGroup("cond", "X_||_Y"),
-        OperatorGroup("decl", is_assignment, "X_=_Y", de("X_=>_Y")),
+        OperatorGroup("cond", "X_when_Y"),
+        OperatorGroup("decl", is_assignment, "X_=_Y"),
+        OperatorGroup("assoc", "X_=>_Y", "=>_Y"),
         OperatorGroup("lbda", "X_->_Y"),
         OperatorGroup("colon", "X_:_Y"),
         OperatorGroup("bang", "!_Y", "X_!!_Y"),
@@ -62,22 +64,22 @@ def build_op_matrix():
     op_matrix.right_assoc("pow", "lbda", "decl", "colon")
 
     # major
-    op_matrix.order("pfx", "sjuxt", "wjuxt", "decl", "cond", "bang", "nl", "seq")
-    op_matrix.order("sjuxt", "custom", "decl")
+    op_matrix.order("pfx", "sjuxt", "wjuxt", "assoc", "decl", "cond", "bang", "nl", "seq")
+    op_matrix.order("sjuxt", "custom", "assoc")
     op_matrix.order("seq", "open")
     op_matrix.order("seq", "close")
     op_matrix.order("sjuxt", "pow", "unary", "mul", "add",
                     "range", "in",
                     "binand", "binxor", "binor", "cmp",
-                    "decl")
+                    "assoc")
     op_matrix.order("range", "by", "in")
     op_matrix.order("in", "wjuxt")
-    op_matrix.order("range", "map", "decl")
+    op_matrix.order("by", "map", "assoc")
+    op_matrix.order("sjuxt", "deco", "wjuxt")
 
     # logical connectives
-    op_matrix.order("cmp", "not", "decl")
-    op_matrix.order("cmp", "and", "decl")
-    op_matrix.order("cmp", "or", "decl")
+    op_matrix.order("cmp", "and", "assoc")
+    op_matrix.order("cmp", "or", "assoc")
 
     # lambda & colon
     op_matrix.order("wjuxt", "lbda", "bang")
@@ -88,15 +90,19 @@ def build_op_matrix():
     op_matrix.infer()
 
     # corrections
-    op_matrix.left_order("cond", "decl")
-    op_matrix.left_order("decl", "cond")
+    op_matrix.left_order("cond", "assoc")
+    op_matrix.left_order("assoc", "cond")
 
+    op_matrix.left_order("lbda", "assoc")
+    op_matrix.right_order("lbda", "assoc")
     op_matrix.left_order("lbda", "decl")
     op_matrix.right_order("lbda", "decl")
+    op_matrix.left_order("cond", "lbda")
+    op_matrix.right_order("cond", "lbda")
 
     for g in ["sjuxt", "wjuxt", "pfx", "add", "mul", "unary", "pow", "range",
-              "binor", "binxor", "binand", "cmp",
-              "pr", "cond", "decl", "lbda", "colon", "custom"]:
+              "binor", "binxor", "binand", "cmp", "and", "or",
+              "pr", "cond", "assoc", "lbda", "colon", "custom"]:
         op_matrix.right_order(g, "colon")
         op_matrix.right_order(g, "lbda")
 

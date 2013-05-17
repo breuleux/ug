@@ -81,6 +81,12 @@ def transfer(x, y):
 
 def make_ast(node):
 
+    def rmu(x):
+        if x is None:
+            return None
+        else:
+            return x.replace("_", "")
+
     def helper():
 
         if isinstance(node, Token):
@@ -88,13 +94,13 @@ def make_ast(node):
             if cmd == 'id':
                 return ugstr(args[0])
             elif cmd == 'num10':
-                n, dec, exp = args
+                n, dec, exp = map(rmu, args)
                 if dec is not None or exp is not None:
                     return mkv(float("%s.%se%s" % (n or '0', dec or '0', exp or '0')))
                 else:
-                    return mkv(int(n))
+                    return mkv(int(n.replace("_", "")))
             elif cmd == 'numR':
-                radix, n, dec = args
+                radix, n, dec = map(rmu, args)
                 radix = int(radix)
                 if dec is not None:
                     return mkv(int(n + dec, radix) / radix**len(dec))

@@ -5,6 +5,7 @@ from functools import reduce
 from ..parsing import VOID
 from ..lib import (hashstruct, anonstruct, attrdict,
                    hybrid, index, hastag, index)
+NoneType = type(None)
 
 hs = hashstruct
 
@@ -80,7 +81,7 @@ def _convert_formula(f):
         # over = False
         # defaults = []
 
-        acceptable = (str, tuple, hs.deconstruct, hs.check,
+        acceptable = (NoneType, str, tuple, hs.deconstruct, hs.check,
                       hs.star, hs.assoc, hs.dstar, hs.default,
                       hs.default_assoc)
 
@@ -102,7 +103,7 @@ def _convert_formula(f):
                 ban(hs.star, hs.default)
                 acceptable += (str, tuple, hs.deconstruct, hs.check)
                 i = 2
-                ranges[-1] = 0
+                ranges[i] = 0
                 new.append((entry[0], ))
             elif isinstance(entry, hs.assoc):
                 ban(hs.star, str, tuple, hs.deconstruct, hs.check)
@@ -126,7 +127,7 @@ def _convert_formula(f):
             #     raise Exception("=> must be at the end")
             else:
                 ranges[i] += 1
-                new.append(entry)
+                new.append((entry,))
             
 
             # nonlocal over, dstar, saw_assoc
@@ -185,7 +186,8 @@ def _deconstruct(dctor, value):
         else:
             raise Exception("Not deconstructible")
     else:
-        return dctor.__deconstruct__(value)
+        rval = dctor.__deconstruct__(value)
+        return rval
 
 def _deconstruct2(value, f):
 
@@ -203,10 +205,14 @@ def _deconstruct2(value, f):
             raise TypeError("Not deconstructible")
 
         nfirst, ndefaults, nlast, keys, dstar, *subf = f
-        results = [_deconstruct2(t[i], subf[i][0])
-                   for i in range(nfirst)]
-
         lt = len(t)
+        results = []
+
+        for i in range(nfirst):
+            if i >= lt:
+                raise TypeError("Out of bounds")
+            results.append(_deconstruct2(t[i], subf[i][0]))
+
         for i in range(nfirst, nfirst + ndefaults):
             p, default = subf[i]
             results.append(_deconstruct2(t[i] if i < lt else default, p))
@@ -230,10 +236,10 @@ def _deconstruct2(value, f):
                 if len(keyf) == 2:
                     r = keyf[1]
                 else:
-                    raise
+                    raise TypeError("Could not find key", key)
             results.append(_deconstruct2(r, keyf[0]))
         if dstar:
-            results.append(_deconstruct2(d, subf[-1]))
+            results.append(_deconstruct2(d, subf[-1][0]))
         elif d:
             raise TypeError("Extra keys", d)
 
@@ -249,17 +255,43 @@ def _deconstruct2(value, f):
 
     elif isinstance(f, hs.deconstruct):
         dctor, *spec = f[:]
-        return _deconstruct2(spec, _deconstruct(dctor, value))
+        return _deconstruct2(_deconstruct(dctor, value), tuple(spec))
 
     elif f is None:
         return ()
 
+    else:
+        raise Exception("Unknown:", f)
+
+
+@library_function("@")
+class Checker:
+    def __init__(self, void, f):
+        self.f = f
+    def __check__(self, value):
+        return self.f(value)
+    def __call__(self, value):
+        return self.f(value)
+
+
+@library_function("raise")
+class raiser:
+    @staticmethod
+    def __recv__(message):
+        raise message
+
 
 @library_function
 def check(checker, value):
-    if hasattr(checker, '__check__'):
-        return checker.__check__(value)
-    elif isinstance(checker, type):
+
+    try:
+        checker = getattr(checker, '__check__')
+    except AttributeError:
+        pass
+    else:
+        return checker(value)
+
+    if isinstance(checker, type):
         if isinstance(value, checker):
             return value
         else:
@@ -305,6 +337,8 @@ library_function(iter)
 library_function(zip)
 
 library_function("VOID")(VOID)
+
+library_function("%%tuple")(lambda *args: args)
 
 
 @library_function
@@ -355,8 +389,19 @@ def ugmap(seq, obj):
         result = send_safeguard(obj, entry)
         if isinstance(result, hs.ok):
             yield result[0]
-        else:
+        elif isinstance(result, hs.guard_fail):
             continue
+        else:
+            raise TypeError("Match failed", result[0])
+
+@library_function("each")
+def ugeach(seq, obj):
+    for entry in seq:
+        result = send_safeguard(obj, entry)
+        if isinstance(result, (hs.ok, hs.guard_fail)):
+            continue
+        else:
+            raise TypeError("Match failed", result[0])
 
 
 
@@ -409,39 +454,52 @@ class ugobj:
     def __getitem__(self, item):
         return self.__recv__(index(item))
 
+    def __setattr__(self, attr, value):
+        if attr.startswith('__'):
+            setattr(super(), attr, value)
+        else:
+            return self.__recv__(hs.assign(attr, value))
+
+    def __setitem__(self, item, value):
+        return self.__recv__(hs.assign(index(item), value))
+
 
 @library_function
 def make_object(*specifications):
-
-    # for deconstructor, f in specifications:
-    #     f.__name__ = name
 
     class R(ugobj):
 
         def __recv_safeguard__(self, arg):
             errors = []
-            for deconstructor, f in specifications:
+            guards = []
+            for deconstructor, guard, f in specifications:
                 try:
                     args = deconstructor(arg)
                 except TypeError as e:
                     errors.append(e)
                     continue
+                if guard and not guard(*args):
+                    guards.append(GuardError("Guard failed."))
+                    continue
                 return hs.ok(f(*args))
-            return hs.fail(errors)
+            if errors:
+                return hs.fail(errors)
+            return hs.guard_fail(guards)
 
         def __recv__(self, arg):
             errors = []
-            for deconstructor, f in specifications:
+            for deconstructor, guard, f in specifications:
                 try:
                     args = deconstructor(arg)
                 except TypeError as e:
                     errors.append(e)
+                    continue
+                if guard and not guard(*args):
+                    errors.append(GuardError("Guard failed."))
                     continue
                 return f(*args)
             raise TypeError("Nothing matched", errors)
 
-    # R.__name__ = name
-    # R.__recv__.__name__ = name
     return R()
 
 
@@ -489,3 +547,16 @@ def trycatch(thunk, handler, else_, finally_):
     finally:
         if finally_:
             finally_()
+
+
+library_function("nonzero")(bool)
+
+
+class GuardError(TypeError):
+    pass
+
+@library_function
+def apply_guard(guard):
+    if not guard():
+        raise GuardError("Guard failed")
+

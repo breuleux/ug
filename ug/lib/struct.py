@@ -27,6 +27,10 @@ class hybrid:
 class index:
     def __init__(self, item):
         self.item = item
+    def __str__(self):
+        return "?(" + repr(self.item) + ")"
+    def __repr__(self):
+        return "?(" + repr(self.item) + ")"
 
 
 class structmc(type):

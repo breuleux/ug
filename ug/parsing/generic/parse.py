@@ -58,8 +58,6 @@ class Token:
         return str(self)
 
 
-whitespace_re = re.compile(" *")
-
 
 class SubTokenizer:
     """
@@ -115,7 +113,8 @@ class SubTokenizer:
     token.
     """
 
-    def __init__(self, rules):
+    def __init__(self, rules, ws_re):
+        self.ws_re = ws_re
         self.rules = rules
         self.rulemap = [[] for i in range(129)]
         for rule in rules:
@@ -129,7 +128,7 @@ class SubTokenizer:
                     self.rulemap[i].append(rest)
 
     def ws(self, text, pos):
-        ws = whitespace_re.match(text, pos)
+        ws = self.ws_re.match(text, pos)
         s = ws.span()
         return s[1] - s[0]
 

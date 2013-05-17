@@ -109,6 +109,8 @@ def index(self, node, args):
         arg = args[1]
         if isinstance(arg, hs.begin):
             return hs.square(*arg[:])
+        elif arg == hs.value(VOID):
+            return hs.square()
         else:
             return hs.square(arg)
     else:
@@ -136,7 +138,7 @@ class ParseLHSAssign(ParseLHS):
 
     def __init__(self, compiler, lhs):
         self.compiler = compiler
-        super().__init__(lhs)
+        super().__init__(lhs, False)
 
     def visit_juxt(self, node, *args, d):
         node = self.compiler.visit(node)
@@ -277,8 +279,11 @@ def mac_lambda(self, node, args):
                 dv = UniqueVar("δ")
                 instructions.append(hs2.declare(dv, None))
                 instructions.append(hs2.assign(dv, p.deconstructor))
-                functions.append(hs2.tuple(dv, hs2["lambda"](p.variables, #[v for v, t in p.variables],
-                                                             body)))
+                
+                functions.append(hs2.tuple(dv,
+                                           (hs2["lambda"](p.variables, p.guard) if p.guard else hs.value(None)),
+                                           hs2["lambda"](p.variables, #[v for v, t in p.variables],
+                                                         body)))
             instructions.append(build_scall(lib.make_object, *functions))
             rval = hs2.begin(*instructions)
 

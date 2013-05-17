@@ -119,7 +119,7 @@ class UGToPy(ASTVisitor):
 
     def visit_tuple(self, node, *args):
         newargs = list(map(self.visit, args))
-        c = hs.Call(transloc(hs.Name('tuple', hs.Load()), node),
+        c = hs.Call(transloc(hs.Name('%%tuple', hs.Load()), node),
                        newargs,
                        [],
                        None,
@@ -336,7 +336,8 @@ def evaluate(ast, source = None):
         py = pyast.Module([py])
     py = pyast.fix_missing_locations(py)
 
-    code = compile(py, source and source.url or "<string>", 'exec')
+    # code = compile(py, source and source.url or "<string>", 'exec')
+    code = compile(py, "<string>", 'exec')
 
     d = dict(lib.ug_library)
 

@@ -148,6 +148,10 @@ def accumulate_sequence(compiler, entries, type, expand_eqassoc = True):
                         [hs2.declare(variable, handler),
                          hs2.assign(variable, entry)]
 
+            if p.guard is not None:
+                instructions += [build_scall(lib.apply_guard,
+                                             hs2["lambda"]([], p.guard))]
+
             instructions.append(hs.value(None))
 
             results += accumulate_sequence(compiler, instructions, type, False)
@@ -184,7 +188,7 @@ def parse_sequence(compiler, seq):
                                    compiler.xvisit(rhs)))
 
             else:
-                p = ParseLHS(lhs)
+                p = ParseLHS(lhs, allow_guard = False)
                 variables = p.variables
                 deconstructor = p.deconstructor
                 rv = transfer(UniqueVar("α"), deconstructor)
@@ -433,8 +437,10 @@ class InSeqCompiler(Compiler):
 
 class ParseLHS(ASTVisitor):
 
-    def __init__(self, lhs):
+    def __init__(self, lhs, allow_guard = True):
         super().__init__()
+        self.allow_guard = allow_guard
+        self.guard = None
         self.variables = []
         self.instructions = []
         self.simple = True
@@ -503,12 +509,21 @@ class ParseLHS(ASTVisitor):
             return self.make_deconstruct(d, newargs)
 
     def visit_oper(self, node, op, x, y, d):
+        was_simple = self.simple
         self.simple = False
 
         if op == "=":
             if d is not None:
                 raise Exception("Cannot give a type to whole = expression")
             return build_fcall(self.hash("default"), self.visit(x, d = d), y)
+
+        elif op == "when":
+            if not was_simple:
+                raise Exception("when must be top level")
+            if not self.allow_guard:
+                raise Exception("when is not allowed here")
+            self.guard = y
+            return self.visit(x, d = d)
 
         elif op == "*" and x == hs.value(VOID):
             if not isinstance(y, ugstr):

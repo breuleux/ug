@@ -1,17 +1,11 @@
 
 import re
-import exc
+from ...tools import exc
 
 __all__ = ["Codec", "CodecException"]
 
-class CodecException(exc.Exception):
-    def __init__(self, **keywords):
-        self.__dict__.update(keywords)
-    def __str__(self):
-        return "[%s]" % (", ".join("%s = %s" % (k, v)
-                                   for k, v in self.__dict__.items()))
-    def __repr__(self):
-        return str(self)
+class CodecException(exc.RichException):
+    pass
 
 class Codec:
     """

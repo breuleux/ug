@@ -22,24 +22,44 @@ value_void = hs.value(VOID)
 def mkv(x):
     return hs.value(x)
 
+# def hasloc(x):
+#     return ((isinstance(x, pyast.AST) 
+#              and hasattr(x, "lineno")
+#              and hasattr(x, "col_offset"))
+#             or (hastag(x, "location")
+#                 and gettag(x, "location")))
+
+# def getloc(x):
+#     if isinstance(x, pyast.AST):
+#         return (x.lineno, x.col_offset)
+#     else:
+#         return gettag(x, "location")
+
+# def setloc(x, loc):
+#     if isinstance(x, pyast.AST):
+#         if (getattr(x, 'lineno', None) is None
+#             and getattr(x, 'col_offset', None) is None):
+#             if isinstance(loc, tuple):
+#                 line, col = loc
+#             else:
+#                 (line, col), end = loc.linecol()
+#             x.lineno = line
+#             x.col_offset = col
+#         return x
+#     elif hastag(x, "location"):
+#         return x
+#     else:
+#         return tag(x, "location", loc)
+
+def hasloc(x):
+    return (hastag(x, "location")
+            and gettag(x, "location"))
+
 def getloc(x):
-    if isinstance(x, pyast.AST):
-        return (x.lineno, x.col_offset)
-    else:
-        return gettag(x, "location")
+    return gettag(x, "location")
 
 def setloc(x, loc):
-    if isinstance(x, pyast.AST):
-        if (getattr(x, 'lineno', None) is None
-            and getattr(x, 'col_offset', None) is None):
-            if isinstance(loc, tuple):
-                line, col = loc
-            else:
-                (line, col), end = loc.linecol()
-            x.lineno = line
-            x.col_offset = col
-        return x
-    elif hastag(x, "location"):
+    if hastag(x, "location"):
         return x
     else:
         return tag(x, "location", loc)
@@ -50,6 +70,13 @@ def transloc(x, y):
     except (KeyError, AttributeError):
         # print("NO LOCATION:", y)
         return x
+
+def transfer(x, y):
+    try:
+        x.__tags__.update(y.__tags__)
+    except AttributeError:
+        pass
+    return x
 
 
 def make_ast(node):
@@ -92,6 +119,18 @@ def make_ast(node):
                 return getattr(hs, op.type)(args[2])
             elif isinstance(op, Operator):
                 op = node.op.name
+
+                if op in "( [ { \"".split():
+                    raise SyntaxError['missing_bracket'](
+                        node = node,
+                        open = node.op,
+                        close = None)
+                elif op in "} ] )".split():
+                    raise SyntaxError['missing_bracket'](
+                        node = node,
+                        open = None,
+                        close = node.op)
+
                 args = list(map(make_ast, node.args))
                 if op == '':
                     if node.op.width == 'wide':
@@ -107,7 +146,7 @@ def make_ast(node):
                         return args[0]
                     return hs.seq(*args)
                 else:
-                    return hs.oper(transloc(ugstr(op), node.op), *args)
+                    return hs.oper(transfer(ugstr(op), node.op), *args)
             else:
                 raise SyntaxError['what'](node)
 
@@ -132,7 +171,7 @@ class ASTVisitor:
             rval = f(node, **keywords)
         if self.transfer_locations:
             try:
-                rval = transloc(rval, node)
+                rval = transfer(rval, node)
             except KeyError:
                 pass
                 # print("NO LOCATION", node, node.__tags__)

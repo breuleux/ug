@@ -14,6 +14,117 @@ Options:
 """
 
 from docopt import docopt
+from descr import boxy_terminus, HTMLRuleBuilder as RB
+
+# pr = boxy_terminus()#always_setup = True)
+
+# from ug.format.format import std_terminus
+
+# css = {
+#     ".{@struct.#value}>.label": {"display": "none"},
+#     ".{@struct.#juxt}>.label": {"display": "none"},
+#     ".{@struct.#oper}>.label": {"display": "none"},
+#     ".{@struct.#square}>.label": {"display": "none"},
+#     ".{@struct.#curly}>.label": {"display": "none"},
+#     ".{@struct.#begin}>.label": {"display": "none"},
+
+#     ".{@struct.#oper}>.sequence>:first-child": {"color": "white"},
+
+#     ".{@struct} .sequence": {},
+#     ".{@struct.#value}>.sequence": {
+#         "border": "1px solid #050",
+#         "padding": "0px"
+#         },
+#     ".{@struct.#value} .{@str}": {
+#         "color": "#8f8"
+#         },
+#     ".{@struct.#value} .{@VOID}": {
+#         "color": "#888"
+#         },
+#     ".{@struct.#juxt}>.sequence": {
+#         "border-bottom": "2px solid #222"
+#         },
+#     ".{@struct.#oper}>.sequence": {
+#         "border-bottom": "2px solid #222"
+#         },
+#     ".{@struct.#square}>.sequence": {
+#         "border-bottom": "3px solid #f88"
+#         },
+#     ".{@struct.#curly}>.sequence": {
+#         "border-bottom": "3px solid #88f"
+#         },
+#     ".{@struct.#begin}>.sequence": {
+#         "border-bottom": "3px dotted #888"
+#         },
+
+#     # ==============
+
+#     ".{@struct.#tuple}>.label": {"display": "none"},
+#     ".{@struct.#special}>.label": {"display": "none"},
+#     ".{@struct.#send}>.label": {"display": "none"},
+
+#     ".{@struct.#tuple}>.sequence": {
+#         "border-bottom": "3px solid #8f8"
+#         },
+#     ".{@struct.#special}>.sequence": {
+#         "border": "1px solid #005",
+#         "padding": "0px"
+#         },
+#     ".{@struct.#special} .{@str}": {
+#         "color": "#88f"
+#         },
+
+#     ".{@struct.#send}>.sequence": {
+#         "border-bottom": "2px solid #222"
+#         },
+    
+
+#     }
+
+# manips = [
+#     ("@struct", {"join": ""})
+#     ]
+
+
+from ug import SyntaxError
+from ug.format import errors
+from ug.lib import struct, hastag, gettag
+from descr import descr
+
+def descr2(x, recurse = None):
+    v = descr(x, descr2)
+    if isinstance(x, struct):
+        if hastag(x, "location") and gettag(x, "location"):
+            return [{"$located"}] + list(v)
+        else:
+            return [{"!located"}] + list(v)
+    else:
+        return v
+
+
+class prerror:
+    def __enter__(self):
+        pass
+    def __exit__(self, type, value, traceback):
+        if type is None:
+            return True
+        elif issubclass(type, SyntaxError):
+            rules = RB().pclasses(".location", "C=3")
+            rules.rearrange(".hl1, .hl2, .hl3, .hlE",
+                            lambda classes, children: ["_"]*len(children[0]) if not children[0].strip() else children)
+
+            # rules.css_text_decoration(".hl1", "underline")
+            # rules.css_text_decoration(".hl2", "underline")
+            # rules.css_text_decoration(".hl3", "underline")
+            e = errors.process_error(value)
+            if e is None:
+                return
+            else:
+                pr = boxy_terminus(rules = rules)
+                value.__traceback__ = None
+                pr(e)
+                return True
+
 
 if __name__ == '__main__':
     args = docopt(__doc__)
@@ -25,47 +136,67 @@ if __name__ == '__main__':
     eval = args["eval"]
     test = args["test"]
 
-    if en or de or tok or ast or test or eval:
-        if args["FILE"]:
-            try:
-                s = open(args["FILE"]).read()
-                path = args["FILE"]
-            except IOError as e:
-                exit(e)
-        else:
-            s = args["-s"]
-            path = None
 
-        if en:
-            from ug import encode
-            print(encode(s))
-        elif de:
-            from ug import decode
-            print(decode(s))
-        elif tok:
-            from ug import Source
-            from ug.parsing.ug.tokenizer import tokenizer
-            for entry in tokenizer(Source(s, url = path)):
-                print(entry)
-        elif ast:
-            from ug import parse, Source
-            result = parse(Source(s, url = path))
-            print(result)
-        elif eval:
-            from ug import parse, compile, Source
-            from ug.compile.topy import evaluate
-            src = Source(s, url = path)
-            ast = parse(src)
-            ast2 = compile(ast)
-            print(evaluate(ast2, source = src))
-        elif test:
-            from ug import parse, compile, Source
-            from ug.lib import hashstruct as hs
-            ast = parse(Source(s, url = path))
-            result = compile(ast)
-            print(result)
-        else:
-            exit("This should not happen...")
+    with prerror() as p:
+        if en or de or tok or ast or test or eval:
+            if args["FILE"]:
+                try:
+                    s = open(args["FILE"]).read()
+                    path = args["FILE"]
+                except IOError as e:
+                    exit(e)
+            else:
+                s = args["-s"]
+                path = None
+
+            if en:
+                from ug import encode
+                print(encode(s))
+            elif de:
+                from ug import decode
+                print(decode(s))
+            elif tok:
+                from ug import Source
+                from ug.parsing.ug.tokenizer import tokenizer
+                from descr.util import Table, Group
+                rules = RB()
+                rules.hide(".source_header")
+                rules.mclasses(".table > * > .{@str}", {"scalar", "@str"})
+                pr = boxy_terminus(rules = rules)
+                things = []
+                for entry in tokenizer(Source(s, url = path)):
+                    things.append([str(entry), Group([entry.loc])])
+                pr(Table(things))
+            elif ast:
+                from ug import parse, Source
+                from descr.util import Quote
+                from descr import make_joiner
+                from ug.format.displayrules import ugdescr, rules
+                result = parse(Source(s, url = path))
+                pr = boxy_terminus()
+                pr((result), rules = rules, descr = ugdescr)
+                # std_terminus(css = css, manipulators = manips)(result)
+            elif eval:
+                from ug import parse, compile, Source
+                from ug.compile.topy import evaluate
+                src = Source(s, url = path)
+                ast = parse(src)
+                ast2 = compile(ast)
+                print(evaluate(ast2, source = src))
+            elif test:
+                from ug import parse, compile, Source
+                from ug.lib import hashstruct as hs
+                from ug.format.displayrules import ugdescr, rules
+                ast = parse(Source(s, url = path))
+                result = compile(ast)
+
+                pr = boxy_terminus()
+                # rules = RB()
+                rules.css_border(".{!located}", "4px solid red")
+                pr(result, rules = rules, descr = ugdescr)
+                # std_terminus(css = css, manipulators = manips)(result)
+            else:
+                exit("This should not happen...")
 
 
 

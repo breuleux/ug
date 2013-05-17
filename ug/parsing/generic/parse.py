@@ -1,9 +1,9 @@
 
-import exc
 import re
 
 from .location import Location, Source
 from ...lib import struct, tag, ugstr
+from ...tools import exc
 
 
 __all__ = [
@@ -17,14 +17,8 @@ __all__ = [
     ]
 
 
-class SyntaxError(exc.SyntaxError):
-    def __init__(self, **keywords):
-        self.__dict__.update(keywords)
-    def __str__(self):
-        return "[%s]" % (", ".join("%s = %s" % (k, v)
-                                   for k, v in self.__dict__.items()))
-    def __repr__(self):
-        return str(self)
+class SyntaxError(exc.RichException, exc.SyntaxError):
+    pass
 
 
 #################
@@ -34,8 +28,14 @@ class SyntaxError(exc.SyntaxError):
 class VOID:
     def __str__(self):
         return "VOID"
+    def __sub__(self, other):
+        return -other
+    def __add__(self, other):
+        return +other
     def __repr__(self):
         return "VOID"
+    def __descr__(self, descr):
+        return ({"@VOID"}, '∅')
 
 VOID = VOID()
 
@@ -197,8 +197,9 @@ class Tokenizer:
         self.install_state(state)
 
     def pop_state(self):
-        self.stack.pop()
-        self.install_state(self.stack[-1])
+        if len(self.stack) > 1:
+            self.stack.pop()
+            self.install_state(self.stack[-1])
 
     def dump_buffer(self):
         b = self.buffer
@@ -339,7 +340,7 @@ class Tokenizer:
 ###########################
 
 def parse_op_description(descr):
-    m = re.match("^(x?)([ _]*)([^ _y]*)([ _]*)(y?)$", descr)
+    m = re.match("^(X?)([ _]*)([^ _Y]*)([ _]*)(Y?)$", descr)
     x, w1, op, w2, y = m.groups()
     if op == "W":
         op = ""
@@ -532,6 +533,10 @@ class Operator(struct):
                 and self.width == other.width
                 and self.name == other.name)
 
+    def other_width(self):
+        width = "short" if self.width == "wide" else "wide"
+        return Operator(self.fixity, width, self.name)
+
 
 class Bracket(struct):
 
@@ -588,7 +593,14 @@ class BracketMerge(OpMerge):
         self.mappings = mappings
 
     def merge(self, left, right):
-        return self.mappings[left.op[1].name + right.op[1].name]
+        try:
+            return self.mappings[left.op[1].name + right.op[1].name]
+        except KeyError as e:
+            raise SyntaxError["bracket_mismatch"](
+                open = left.op[1],
+                close = right.op[1],
+                nodes = [left, right]
+                )
 
 
 class OperatorParse:
@@ -685,6 +697,8 @@ class OperatorParse:
             elif order == 0:
                 raise SyntaxError['priority'](left = lop,
                                               right = rop,
+                                              locations = [left.loc, right.loc],
+                                              order = self.order,
                                               parser = self)
                 # raise Exception("priority error", left.op[2], right.op[0])
             elif order == 1:

@@ -1,6 +1,6 @@
 
 from .codec import Codec
-from .location import Source, Location, merge_locations
+from .location import Source, Location, Locations, merge_locations
 from .parse import \
     VOID, \
     Token, NodeToken, \
@@ -8,5 +8,6 @@ from .parse import \
     parse_op_description, OperatorGroup, OperatorGroups, \
     OperatorMatrix, \
     Operator, Bracket, Partial, Forward, OpMerge, BracketMerge, \
-    OperatorParse
-    
+    OperatorParse, \
+    SyntaxError
+

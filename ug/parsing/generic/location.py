@@ -24,6 +24,12 @@ class Source(object):
             raise exc.IndexError['sourcepos'](dict(pos = pos,
                                                    source = self))
 
+    def __descr__(self, recurse):
+        if self.url is None:
+            return [self.text]
+        else:
+            return [{"file"}, self.url, self.text]
+
 
 class Location(object):
     """
@@ -42,8 +48,11 @@ class Location(object):
         self.tokens = tokens
         self._linecol = None
 
-    def __len__(self):
-        return self.span[1] - self.span[0]
+    # def __nonzero__(self):
+    #     return True
+
+    # def __len__(self):
+    #     return self.span[1] - self.span[0]
 
     def linecol(self):
 
@@ -110,6 +119,29 @@ class Location(object):
 
     def __repr__(self):
         return self.ref()
+
+    def __descr__(self, recurse):
+        return [{"location"},
+                recurse(self.source),
+                (self.start, self.end, {"hl2"})]
+
+
+class Locations:
+
+    __hls__ = ["hl1", "hl2", "hl3", "hlE"]
+
+    def __init__(self, locations):
+        self.locations = locations
+
+    def get_hl(self, i):
+        return self.__hls__[i % len(self.__hls__)]
+
+    def __descr__(self, recurse):
+        locations = [(l.start, l.end, {self.get_hl(i)})
+                     for i, l in enumerate(self.locations)]
+        return [{"location"},
+                recurse(self.locations[0].source)] + locations
+        
 
 
 def merge_locations(locations):

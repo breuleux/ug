@@ -1,2 +1,3 @@
 
-from .compile import compile, Compiler
+from .compile import Compiler
+from .main import compile

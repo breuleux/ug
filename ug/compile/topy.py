@@ -3,43 +3,46 @@ from functools import reduce
 import ast as pyast
 pycompile = compile
 
-from ..lib import hashstruct as hs, anonstruct, attrdict, hybrid, index, hastag
-from ..parsing.ug.ast import ASTVisitor, VOID, transloc
+from . import lib
+from ..lib import hashstruct as hs, anonstruct, attrdict, hybrid, index, hastag, struct
+from ..parsing.ug.ast import ASTVisitor, VOID, transloc, getloc, hasloc
 from .compile import UniqueVar, hs2
 
 
-ops = {
-    hs.special("+"): attrdict(unary = pyast.UAdd,
-                              binary = pyast.Add),
-    hs.special("-"): attrdict(unary = pyast.USub,
-                              binary = pyast.Sub),
-    hs.special("*"): attrdict(unary = None,
-                              binary = pyast.Mult),
-    hs.special("/"): attrdict(unary = None,
-                              binary = pyast.Div),
+# ops = {
+#     hs.special("+"): attrdict(unary = pyast.UAdd,
+#                               binary = pyast.Add),
+#     hs.special("-"): attrdict(unary = pyast.USub,
+#                               binary = pyast.Sub),
+#     hs.special("*"): attrdict(unary = None,
+#                               binary = pyast.Mult),
+#     hs.special("/"): attrdict(unary = None,
+#                               binary = pyast.Div),
 
-    hs.special("<"): attrdict(unary = None,
-                              binary = pyast.Lt,
-                              compare = True),
-    hs.special(">"): attrdict(unary = None,
-                              binary = pyast.Gt,
-                              compare = True),
-    hs.special("=<"): attrdict(unary = None,
-                               binary = pyast.LtE,
-                               compare = True),
-    hs.special(">="): attrdict(unary = None,
-                               binary = pyast.GtE,
-                               compare = True),
-    hs.special("=="): attrdict(unary = None,
-                               binary = pyast.Eq,
-                               compare = True),
-    hs.special("!="): attrdict(unary = None,
-                               binary = pyast.NotEq,
-                               compare = True)
+#     hs.special("<"): attrdict(unary = None,
+#                               binary = pyast.Lt,
+#                               compare = True),
+#     hs.special(">"): attrdict(unary = None,
+#                               binary = pyast.Gt,
+#                               compare = True),
+#     hs.special("=<"): attrdict(unary = None,
+#                                binary = pyast.LtE,
+#                                compare = True),
+#     hs.special(">="): attrdict(unary = None,
+#                                binary = pyast.GtE,
+#                                compare = True),
+#     hs.special("=="): attrdict(unary = None,
+#                                binary = pyast.Eq,
+#                                compare = True),
+#     hs.special("!="): attrdict(unary = None,
+#                                binary = pyast.NotEq,
+#                                compare = True)
 
-    }
+#     }
 
 
+exprclasses = hs.Name, hs.Num, hs.Str, hs.Call
+# stmtclasses = ()
 
 class UGToPy(ASTVisitor):
 
@@ -60,11 +63,11 @@ class UGToPy(ASTVisitor):
     def register(self, stmt, var, original = None):
         if original and hastag(original, "location"):
             stmt = transloc(stmt, original)
-        if isinstance(stmt, pyast.expr):
-            if isinstance(stmt, (pyast.Name, pyast.Num, pyast.Str)):
+        if isinstance(stmt, exprclasses):
+            if isinstance(stmt, (hs.Name, hs.Num, hs.Str)):
                 self.blocks[-1].append((None, var))
                 return var
-            stmt = transloc(pyast.Expr(stmt), stmt)
+            stmt = transloc(hs.Expr(stmt), stmt)
         self.blocks[-1].append((stmt, var))
         return var
 
@@ -72,8 +75,8 @@ class UGToPy(ASTVisitor):
         if node and hastag(node, "location"):
             expr = transloc(expr, node)
         v = UniqueVar("temp")
-        r = pyast.Assign([transloc(pyast.Name(str(v), pyast.Store()), node)], expr)
-        return self.register(r, transloc(pyast.Name(str(v), pyast.Load()), node), node)
+        r = hs.Assign([transloc(hs.Name(str(v), hs.Store()), node)], expr)
+        return self.register(r, transloc(hs.Name(str(v), hs.Load()), node), node)
 
     def finalize_statements(self, stmts, init, builder):
         last = init
@@ -88,31 +91,36 @@ class UGToPy(ASTVisitor):
 
 
     def visit_ugstr(self, node):
-        r = pyast.Name(str(node), pyast.Load())
+        r = hs.Name(str(node), hs.Load())
         return self.register(r, r, node)
 
+    def visit_str(self, node):
+        return self.visit_ugstr(node)
+
     def visit_UniqueVar(self, node):
-        r = pyast.Name(str(node), pyast.Load())
+        r = hs.Name(str(node), hs.Load())
         return self.register(r, r, node)
 
     def visit_value(self, node, value):
         if isinstance(value, (int, float)):
-            r = pyast.Num(value)
+            r = hs.Num(value)
         elif isinstance(value, str):
-            r = pyast.Str(str(value))
-        elif value in (None, True, False):
-            r = pyast.Name(str(value), pyast.Load())
+            r = hs.Str(str(value))
+        elif value in (None, True, False, VOID):
+            r = hs.Name(str(value), hs.Load())
+        elif value in lib.rev_ug_library:
+            r = hs.Name(lib.rev_ug_library[value], hs.Load())
         else:
             raise Exception("unknown value", value)
         return self.register(r, r, node)
 
     def visit_special(self, node, value):
-        r = pyast.Name('%%' + str(value), pyast.Load())
+        r = hs.Name('%%' + str(value), hs.Load())
         return self.register(r, r, node)
 
     def visit_tuple(self, node, *args):
         newargs = list(map(self.visit, args))
-        c = pyast.Call(transloc(pyast.Name('%%tuple', pyast.Load()), node),
+        c = hs.Call(transloc(hs.Name('%%tuple', hs.Load()), node),
                        newargs,
                        [],
                        None,
@@ -121,31 +129,31 @@ class UGToPy(ASTVisitor):
 
     def visit_send(self, node, obj, msg):
 
-        if isinstance(obj, (hs.special, hs.value)) and obj in ops:
+        if False and isinstance(obj, (hs.special, hs.value)) and obj in ops:
             spec = ops[obj]
             if isinstance(msg, hs.tuple):
                 left, right = msg[:]
                 if left == hs.value(VOID):
-                    r = pyast.UnaryOp(spec.unary(), self.visit(right))
+                    r = hs.UnaryOp(spec.unary(), self.visit(right))
                 else:
                     if getattr(spec, 'compare', False):
-                        r = pyast.Compare(self.visit(left),
+                        r = hs.Compare(self.visit(left),
                                              [spec.binary()],
                                              [self.visit(right)])
                     else:
-                        r = pyast.BinOp(self.visit(left),
+                        r = hs.BinOp(self.visit(left),
                                            spec.binary(),
                                            self.visit(right))
             else:
                 raise Exception("Sending to strange thing:", node)
         elif isinstance(msg, hs.tuple):
-            r = pyast.Call(self.visit(obj),
+            r = hs.Call(self.visit(obj),
                            list(map(self.visit, msg[:])),
                            [],
                            None,
                            None)
         else:
-            r = pyast.Call(pyast.Name('%%send', pyast.Load()),
+            r = hs.Call(hs.Name('%%send', hs.Load()),
                            [self.visit(obj), self.visit(msg)],
                            [],
                            None,
@@ -154,7 +162,7 @@ class UGToPy(ASTVisitor):
         return self.assign_and_register(r, node)
 
     def visit_begin(self, node, *stmts):
-        rval = pyast.Name("None", pyast.Load())
+        rval = hs.Name("None", hs.Load())
         for stmt in stmts:
             rval = self.visit(stmt)
         return rval
@@ -166,8 +174,8 @@ class UGToPy(ASTVisitor):
 
     def visit_assign(self, node, var, value):
         self.add_assign(var)
-        pyvar = transloc(pyast.Name(str(var), pyast.Load()), var)
-        stmt = transloc(pyast.Assign([transloc(pyast.Name(str(var), pyast.Store()), var)],
+        pyvar = transloc(hs.Name(str(var), hs.Load()), var)
+        stmt = transloc(hs.Assign([transloc(hs.Name(str(var), hs.Store()), var)],
                                      self.visit(value)), node)
         return self.register(stmt, pyvar, node)
 
@@ -179,7 +187,7 @@ class UGToPy(ASTVisitor):
         _if.push()
         _if.visit(iff)
         c = _if.create()
-        return self.register(c, transloc(pyast.Name(str(v), pyast.Load()), v), node)
+        return self.register(c, transloc(hs.Name(str(v), hs.Load()), v), node)
 
     def visit_catch(self, node, expr, handler):
         v = transloc(UniqueVar("catch_result"), node)
@@ -188,61 +196,22 @@ class UGToPy(ASTVisitor):
         _catch.push()
         _catch.visit(handler)
         c = _catch.create()
-        return self.register(c, transloc(pyast.Name(str(v), pyast.Load()), v), node)
+        return self.register(c, transloc(hs.Name(str(v), hs.Load()), v), node)
 
     def visit_return(self, node, v):
-        r = pyast.Return(self.visit(v))
-        return self.register(r, pyast.Name("unreachable", pyast.Load()), node)
-        # self.statements.append(r)
-        # return self.visit(hs.value("unreachable"))
+        r = hs.Return(self.visit(v))
+        return self.register(r, hs.Name("unreachable", hs.Load()), node)
 
-    def visit_object(self, node, v, *specs):
-
-        def build_expr(specs):
-            decl, body = specs[0]
-            if isinstance(decl, hs.declaring):
-                vs, decl_block = decl[:]
-            else:
-                vs, decl_block = [], decl
-                
-            if len(specs) == 1:
-                expr = hs2.begin(decl_block, body)
-            else:
-                expr = hs2.begin(hs2.catch(decl_block,
-                                           hs2["return"](build_expr(specs[1:]))),
-                                 body)
-            return hs2.declaring(vs, expr)
-
-
-        name = transloc(UniqueVar("class"), node)
-
-        r = UGToPyDef('__recv__',
-                      pyast.arguments([pyast.arg(str(UniqueVar("_")), None),
-                                       pyast.arg(str(v), None)],
+    def visit_lambda(self, node, arguments, body):
+        name = transloc(UniqueVar("τ"), node)
+        args = [hs.arg(str(arg), None) for arg in arguments]
+        r = UGToPyDef(str(name),
+                      hs.arguments(args,
                                       None, None, [], None, None, [], []))
-
-        r.visit(build_expr(specs))
-
-        c = transloc(
-            pyast.ClassDef(
-                str(name),
-                [pyast.Name("%%ugobj", pyast.Load())],
-                [],
-                None,
-                None,
-                [r.create()],
-                []),
-            node)
-
-        self.register(c, pyast.Name(str(name), pyast.Load()), node)
-
-        result = transloc(UniqueVar("result"), node)
-
-        return self.visit(hs2.declaring([result],
-                                        hs2.begin(hs2.assign(result,
-                                                             hs2.send(name, hs.tuple())),
-                                                  result)))
-
+        r.visit(body)
+        r = r.create()
+        self.register(r, hs.Name(str(name), hs.Load()), node)
+        return self.visit(hs2.declaring([name], name))
 
     def visit_generic(self, node):
         raise Exception("Unknown node", node)
@@ -259,7 +228,7 @@ class UGToPyModule(UGToPy):
     def create(self):
         statements, = self.blocks[:]
         statements = self.finalize_statements(statements, None, None)
-        m = pyast.Module(statements)
+        m = hs.Module(statements)
         return m
 
 
@@ -269,21 +238,21 @@ class UGToPyDef(UGToPy):
 
     def __init__(self, name, args = None):
         self.name = name
-        self.args = args or pyast.arguments([], None, None, [], None, None, [], [])
+        self.args = args or hs.arguments([], None, None, [], None, None, [], [])
         self.declares = set()
         self.assigns = set()
         super().__init__(self)
 
     def create(self):
-        statements = [transloc(pyast.Nonlocal([str(x)]), x)
+        statements = [transloc(hs.Nonlocal([str(x)]), x)
                       for x in self.assigns if x not in self.declares]
         _statements, = self.blocks[:]
 
         statements += self.finalize_statements(_statements,
-                                               pyast.Name("None", pyast.Load()),
-                                               pyast.Return)
+                                               hs.Name("None", hs.Load()),
+                                               hs.Return)
 
-        f = pyast.FunctionDef(
+        f = hs.FunctionDef(
             self.name,
             self.args,
             statements,
@@ -307,12 +276,12 @@ class UGToPyIf(UGToPy):
     def create(self):
         tstmts, fstmts = self.blocks
 
-        var = transloc(pyast.Name(str(self.var), pyast.Store()), self.var)
+        var = transloc(hs.Name(str(self.var), hs.Store()), self.var)
 
-        tstmts = self.finalize_statements(tstmts, None, lambda x: pyast.Assign([var], x))
-        fstmts = self.finalize_statements(fstmts, None, lambda x: pyast.Assign([var], x))
+        tstmts = self.finalize_statements(tstmts, None, lambda x: hs.Assign([var], x))
+        fstmts = self.finalize_statements(fstmts, None, lambda x: hs.Assign([var], x))
 
-        return pyast.If(self.test, tstmts, fstmts)
+        return hs.If(self.test, tstmts, fstmts)
 
 
 
@@ -325,130 +294,37 @@ class UGToPyCatch(UGToPy):
     def create(self):
         tstmts, estmts = self.blocks
 
-        var = transloc(pyast.Name(str(self.var), pyast.Store()), self.var)
+        var = transloc(hs.Name(str(self.var), hs.Store()), self.var)
 
-        tstmts = self.finalize_statements(tstmts, None, lambda x: pyast.Assign([var], x))
-        estmts = self.finalize_statements(estmts, None, lambda x: pyast.Assign([var], x))
+        tstmts = self.finalize_statements(tstmts, None, lambda x: hs.Assign([var], x))
+        estmts = self.finalize_statements(estmts, None, lambda x: hs.Assign([var], x))
 
-        return pyast.TryExcept(
+        return hs.TryExcept(
                 tstmts,
-                [pyast.ExceptHandler(None,
+                [hs.ExceptHandler(None,
                                      None,
                                      estmts)],
                 [])
 
 
-
-
-def _deconstruct2(value, f):
-
-    if isinstance(f, str):
-        return (value,)
-
-    elif isinstance(f, tuple):
-        if isinstance(value, (tuple, list)):
-            t, d = value, {}
-        elif isinstance(value, dict):
-            t, d = (), dict(value)
-        elif isinstance(value, hybrid):
-            t, d = value.tuple, dict(value.dict)
-        else:
-            raise Exception("Not deconstructible")
-
-        nfirst, nlast, keys, dstar, *subf = f
-        results = [_deconstruct2(t[i], subf[i])
-                   for i in range(nfirst)]
-
-        lt = len(t)
-        if nlast is not None:
-            remainder = lt - nfirst
-            if remainder < nlast:
-                raise Exception("not enough")
-            results.append(_deconstruct2(t[nfirst:len(t)-nlast],
-                                        subf[nfirst]))
-            results += [_deconstruct2(t[lt-nlast+i], subf[nfirst+i+1])
-                        for i in range(nlast)]
-        elif lt > nfirst:
-            raise Exception("Expected exactly", nfirst)
-
-        for key, keyf in zip(keys, subf[nfirst + (nlast+1 if nlast is not None else 0):]):
-            results.append(_deconstruct2(d.pop(key), keyf))
-        if dstar:
-            results.append(_deconstruct2(d, subf[-1]))
-        elif d:
-            raise Exception("Extra keys", d)
-
-        return reduce(tuple.__add__, results)
-
-    elif isinstance(f, hs.check):
-        chk, var = f[:]
-        return ((_check(chk, value), chk),)
-
-#     elif isinstance(f, hs.deconstruct
+def convert_to_py_ast(ast):
+    if isinstance(ast, struct):
+        arguments = list(map(convert_to_py_ast, ast[:]))
+        node = getattr(pyast, type(ast).__name__)(*arguments)
+        if hasloc(ast):
+            loc = getloc(ast)
+            if loc.source:
+                (line, col), end = getloc(ast).linecol()
+                node.lineno = line
+                node.col_offset = col
+        return node
+    elif isinstance(ast, (list, tuple)):
+        return list(map(convert_to_py_ast, ast[:]))
+    else:
+        return ast
 
 
 
-def _convert_formula(f):
-
-    if isinstance(f, tuple):
-        new = []
-        ranges = [0]
-        keys = []
-        dstar = False
-        saw_assoc = False
-        over = False
-        for entry in f:
-            if over:
-                raise Exception("** must be last")
-            if isinstance(entry, hs.star):
-                if saw_assoc:
-                    raise Exception("=> must be at the end")
-                ranges.append(0)
-                new.append(entry[0])
-            elif isinstance(entry, hs.assoc):
-                saw_assoc = True
-                keys.append(entry[0])
-                new.append(entry[1])
-            elif isinstance(entry, hs.dstar):
-                dstar = True
-                over = True
-                new.append(entry[0])
-            elif saw_assoc:
-                raise Exception("=> must be at the end")
-            else:
-                ranges[-1] += 1
-                new.append(entry)
-        if len(ranges) > 2:
-            raise Exception("More than one *")
-        return (ranges[0],
-                ranges[1] if len(ranges) == 2 else None,
-                tuple(keys),
-                bool(dstar)) + tuple(_convert_formula(x) for x in new)
-
-    elif isinstance(f, hs.deconstruct):
-        return hs.deconstruct(f[0], *_convert_formula(f[1:]))
-
-    elif isinstance(f, hs.check):
-        return hs.check(f[0], _convert_formula(f[1]))
-
-    elif isinstance(f, str):
-        return f
-
-
-class PatternDeconstructor:
-
-    def __init__(self, formula):
-        self.formula = formula
-        self._formula = _convert_formula(formula)
-
-    def __call__(self, value):
-        return _deconstruct2(value, self._formula)
-
-    def __str__(self):
-        return "PatternDeconstructor[%s]" % str(self.formula)
-
-    def __repr__(self):
-        return str(self)
 
 
 
@@ -476,39 +352,8 @@ class ugobj:
 
 
 
-def send(obj, msg):
-    if isinstance(msg, tuple):
-        return obj(*msg)
-    elif isinstance(msg, dict):
-        return obj(**msg)
-    elif isinstance(msg, hybrid):
-        return obj(*msg.tuple, **msg.dict)
-    elif isinstance(msg, str):
-        return getattr(obj, msg)
-    elif isinstance(msg, index):
-        return obj[msg.item]
-    else:
-        return obj.__recv__(msg)
-
-def patch_tuple(*args):
-    if len(args) == 0:
-        return ()
-    elif len(args) == 1:
-        return tuple(args[0])
-    else:
-        return reduce(lambda x, y: tuple(x) + tuple(y), args)
-
-def make_dict(*args):
-    return dict(args)
-
-def patch_dict(*args):
-    if len(args) == 0:
-        return {}
-    else:
-        rval = {}
-        for entry in args:
-            rval.update(entry)
-        return rval
+# def make_dict(*args):
+#     return dict(args)
 
 # hybrid = anonstruct['']
 
@@ -517,34 +362,6 @@ def patch_dict(*args):
 #     h.__l__ = l
 #     h.__d__ = d
 #     return h
-
-
-def _assign(obj, item, value):
-    if isinstance(item, index):
-        obj[item.item] = value
-    elif isinstance(item, str):
-        setattr(obj, item, value)
-    else:
-        obj.__recv__(hs.assign(item, value))
-
-def _check(checker, value):
-    if hasattr(checker, '__check__'):
-        return checker.__check__(value)
-    elif isinstance(checker, type):
-        if isinstance(value, checker):
-            return value
-        else:
-            raise TypeError("Expected %s but got %s" % (checker, type(value)))
-    else:
-        raise TypeError("Cannot check with", checker)
-
-class _check_equal:
-    def __init__(self, value):
-        self.value = value
-    def __check__(self, other):
-        if self.value == other:
-            return other
-        raise TypeError("Expected == %s but got %s" % (self.value, other))
 
 
 def _deconstruct(dctor, value):
@@ -605,7 +422,8 @@ def _dict_empty(dic):
     return True
 
 
-
+from descr import boxy_terminus
+pr = boxy_terminus()
 def evaluate(ast, source = None):
     # print(ast)
     # py = UGToPyExpr(None).visit(ast)
@@ -615,37 +433,46 @@ def evaluate(ast, source = None):
 
     ctor.visit(ast)
     py = ctor.create()
+    py = convert_to_py_ast(py)
+    # print(py)
     # print(py.args)
     if isinstance(py, pyast.expr):
         py = pyast.Expression(py)
     elif isinstance(py, pyast.stmt):
         py = pyast.Module([py])
     py = pyast.fix_missing_locations(py)
+
+    pr(py)
+
     # pprint(py)
     # py.lineno = 1
     # py.col_offset = 1
     # pprint(py)
-    code = compile(py, # source and source.url or
-                   "<string>", 'exec')
+
+    # code = compile(py, # source and source.url or
+    #                "<string>", 'exec')
+
+    code = compile(py, source and source.url or "<string>", 'exec')
 
     d = {'f': lambda x, y: x + y,
          'l': [1, 2],
 
-         '%%PatternDeconstructor': PatternDeconstructor,
+         # '%%PatternDeconstructor': PatternDeconstructor,
 
-         '%%hashstruct': hs,
-         '%%index': index,
+         # '%%hashstruct': hs,
+         # '%%index': index,
          '%%tuple': lambda *args: args,
-         '%%send': send,
-         '%%make_hybrid': hybrid,
-         '%%make_dict': make_dict,
-         '%%patch_dict': patch_dict,
-         '%%patch_tuple': patch_tuple,
+         '%%send': lib.send,
 
-         '%%assign': _assign,
-         '%%deconstruct': _deconstruct,
-         '%%check': _check,
-         '%%check_equal': _check_equal,
+         # '%%make_hybrid': hybrid,
+         # '%%make_dict': make_dict,
+         # '%%patch_dict': patch_dict,
+         # '%%patch_tuple': patch_tuple,
+
+         # '%%assign': _assign,
+         # '%%deconstruct': _deconstruct,
+         # '%%check': _check,
+         # '%%check_equal': _check_equal,
          '%%extract_tuple': _extract_tuple,
          '%%tuple_index': _tuple_index,
          '%%tuple_range': _tuple_range,
@@ -659,7 +486,11 @@ def evaluate(ast, source = None):
          '%%dict': dict,
 
          '%%ugobj': ugobj,
+
+         'VOID': VOID,
          }
+    d.update(lib.ug_library)
+
     exec(code, d)
     return d['wackadoodle']()
 
@@ -699,3 +530,47 @@ def pprint(node, offset = 0):
 
 
 
+
+
+import ast
+from descr.registry import types_registry
+from descr.html import html_boxy, HTMLRuleBuilder
+
+class ASTDescriber(ast.NodeVisitor):
+
+    def __init__(self, recurse):
+        self.recurse = recurse
+
+    # def generic_visit(self, node):
+    #     if not isinstance(node, ast.AST):
+    #         return self.recurse(node)
+    #     name = type(node).__name__
+    #     classes = {"@ast.AST", "@AST."+name, "object", "+"+name}
+    #     results = [classes]
+    #     for fieldname, child in ast.iter_fields(node):
+    #         results.append(({"field", "+" + fieldname}, self.visit(child)))
+    #     return results
+
+    def generic_visit(self, node):
+        # if isinstance(node, (int, str, ast.Load, ast.Store)):
+        #     return []
+        if not isinstance(node, ast.AST):
+            return self.recurse(node)
+        name = type(node).__name__
+        results = [{"@list", "sequence"},
+                   name,
+                   self.recurse(getattr(node, 'lineno', None)),
+                   #self.recurse(getattr(node, 'col_offset', None))
+                   ]
+        for fieldname, child in ast.iter_fields(node):
+            results.append(self.visit(child))
+        return results
+
+def describe_ast_node(node, recurse):
+    return ASTDescriber(recurse).visit(node)
+
+
+def setup():
+    types_registry[ast.AST] = describe_ast_node
+
+setup()

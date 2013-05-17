@@ -39,8 +39,7 @@ chr_id = chr_id_lead + "0 1 2 3 4 5 6 7 8 9".split()
 
 # Characters that define operators
 chr_op = de(r"""
-.
-+ - * / ~ ^ < > = : ? % # $ @
++ - * / ~ ^ < > = : % # $ @
 `union` `intersection`
 `subset` `subseteq` `supset` `supseteq`
 `in` `notin`
@@ -116,16 +115,27 @@ rx_rmaydec = "\\.(%s)" % rx_mayalphanum
 
 
 standard_matchers = [
+    # Keywords
+    # subtok_rule("n", rx_without("not", chr_id), ["prefix", 0]),
+    subtok_rule("a", rx_without("and", chr_id), ["infix", 0]),
+    subtok_rule("o", rx_without("or", chr_id), ["infix", 0]),
+    subtok_rule("i", rx_without("in", chr_id), ["infix", 0]),
+    subtok_rule("t", rx_without("to", chr_id), ["infix", 0]),
+    subtok_rule("b", rx_without("by", chr_id), ["infix", 0]),
+    subtok_rule("m", rx_without("map", chr_id), ["infix", 0]),
+
     # Identifiers
     subtok_rule(chr_id, rx_choice(chr_id_lead) + rx_choice(chr_id) + "*", ["id", "id", 0]),
 
     # Numbers (other bases)
-    subtok_rule(numchars, "%s(%s)%s" % (rx_radix, rx_mayalphanum, rx_rmaydec), ["id", "numR", 1, 2, 3]),
+    subtok_rule(numchars, rx_without("%s(%s)%s" % (rx_radix, rx_mayalphanum, rx_rmaydec),
+                                     "."), ["id", "numR", 1, 2, 3]),
     subtok_rule(numchars, "%s(%s)" % (rx_radix, rx_mayalphanum), ["id", "numR", 1, 2, None]),
 
     # Numbers (base 10)
     subtok_rule(numchars, "(%s)%s%s" % (rx_num, rx_maydec, rx_exp), ["id", "num10", 1, 2, 3]),
-    subtok_rule(numchars, "(%s)%s" % (rx_num, rx_maydec), ["id", "num10", 1, 2, None]),
+    subtok_rule(numchars, rx_without("(%s)%s" % (rx_num, rx_maydec),
+                                     ["."] + chr_id_lead), ["id", "num10", 1, 2, None]),
     subtok_rule(numchars, "(%s)%s" % (rx_num, rx_exp), ["id", "num10", 1, None, 2]),
     subtok_rule(".", "%s%s" % (rx_dec, rx_exp), ["id", "num10", None, 1, 2]),
     subtok_rule(numchars, "(%s)" % (rx_num), ["id", "num10", 1, None, None]),
@@ -137,6 +147,7 @@ standard_matchers = [
     subtok_rule(")]}", "\\)|\\]|\\}", ["suffix", 0], action = ["pop"]),
     subtok_rule(",", ",", ["infix", 0]),
     "nl_insert_point",
+    subtok_rule(".", "\\.\\.", ["infix", 0]),
     subtok_rule(":", rx_without(":", chr_op), ["infix", 0]),
     subtok_rule("=", rx_without("=", chr_op), ["infix", 0]),
     subtok_rule("-", rx_without("->", chr_op), ["infix", 0]),
@@ -144,6 +155,7 @@ standard_matchers = [
     subtok_rule("#", rx_without("#", chr_op), ["prefix", 0]),
     subtok_rule("!", "!!", ["infix", 0]),
     subtok_rule("!", "!", ["prefix", 0]),
+    subtok_rule("?", "\\?", ["prefix", 0]),
     subtok_rule(chr_op, "%s+" % rx_choice(chr_op), ["?fix", 0]),
 
     # False friends

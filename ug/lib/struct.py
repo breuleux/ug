@@ -42,6 +42,9 @@ class structmc(type):
         return self.__prefix__ + self.__name__
     def __repr__(self):
         return str(self)
+    def __descr__(self, descr):
+        return str(self)
+
 
 class struct(metaclass = structmc):
 
@@ -129,13 +132,31 @@ class struct(metaclass = structmc):
         return "%s%s%s%s%s" % (self.__prefix__,
                                self.__name__,
                                delims[0],
-                               ", ".join(list(map(str, self.__l__))
-                                         + ["%s = %s" % (k, v)
+                               ", ".join(list(map(repr, self.__l__))
+                                         + ["%r = %r" % (k, v)
                                             for k, v in self.__d__.items()]),
                                delims[1])
 
     def __repr__(self):
         return str(self)
+
+    def __descr__(self, descr):
+        # name = self.__prefix__ + self.__name__
+        # return ({"@struct", "@struct.%s" % name},
+        #         ({"label"}, name),
+        #         (({"sequence"},)
+        #          + tuple(descr(x) for x in self.__l__)
+        #          + tuple(({"assoc"}, descr(k), descr(v))
+        #                  for k, v in self.__d__.items())))
+
+        name = self.__prefix__ + self.__name__
+        return [(({"@struct", "@struct.%s" % name, "+"+name, "object"},)
+                 + tuple(descr(x) for x in self.__l__)
+                 + tuple(({"field", "+"+str(k)}, descr(v))
+                         for k, v in self.__d__.items()))]
+                
+                 
+                 
 
 
 class StructTypeFactory:

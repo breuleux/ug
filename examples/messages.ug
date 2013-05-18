@@ -59,8 +59,13 @@ myobj =
 
 
 tests = [
+    #section["Sending integers"]
     0, 10, 11
+
+    #section["Sending strings"]
     "hello", .method, .special
+
+    #section["Calling as a function"]
     [1], [1, "a"], ["a", 1], [1, 2]
     [1, 2, 3], [1, 2, 3, 4],
     [100, 2r1_100_100, 3r10_201, 16r64, 30r3A] ;; 100 in bases 10, 2, 3, 16 and 30
@@ -68,13 +73,24 @@ tests = [
     [a = 7]
     [name = "name"]
     [num = -8]
+
+    #section["Sending structures"]
     #point[10, 12], #point[x = 10, y = 12, z = 15]
     #line[p1 = #point[0, 0], p2 = #point[100, 100]]
+
+    #section["These won't match"]
     object[]
+
+    #section["Assignment"]
 ]
 
-tests each entry ->
-   print[myobj entry]
+tests each
+  #section [title] ->
+    print[]
+    print[title]
+    print["---"]
+  message ->
+    print[myobj message]
 
 myobj.x := 1
 myobj[0] := 2

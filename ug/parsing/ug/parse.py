@@ -47,6 +47,7 @@ def build_op_groups():
         OperatorGroup("lbda", "X_->_Y"),
         OperatorGroup("colon", "X_:_Y"),
         OperatorGroup("bang", "!_Y", "X_!!_Y"),
+        # OperatorGroup("err", "X_!!_Y"),
         OperatorGroup("seq", "X_,_Y"),
         OperatorGroup("nl", "X_NL_Y"),
 

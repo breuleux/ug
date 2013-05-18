@@ -65,6 +65,10 @@ for name, name_in_module in operators:
 #     return tup[idx]
 
 
+@library_function("in")
+def ugin(a, b):
+    return a in b
+
 
 
 

@@ -523,7 +523,10 @@ class ParseLHS(ASTVisitor):
             if not self.allow_guard:
                 raise Exception("when is not allowed here")
             self.guard = y
-            return self.visit(x, d = d)
+            if x == hs.value(VOID):
+                return hs.value(None)
+            else:
+                return self.visit(x, d = d)
 
         elif op == "*" and x == hs.value(VOID):
             if not isinstance(y, ugstr):

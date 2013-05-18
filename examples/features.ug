@@ -118,6 +118,16 @@ block
            ZeroDivisionError _ -> "the problem is a division by zero"
        ))
   >>> (raise Exception["yay"] !! e -> e)
+  v =
+    6 !!
+      e ->
+        "There was an error"
+      success result ->
+        ;; This is like the else clause of try/except/else in python
+        result * result
+      finally ->
+        >>> "executing finally"
+  >>> v
 
 
 >>> "
@@ -131,8 +141,14 @@ block
     >>> "negative"
   else:
     >>> "zero"
-  if[True, >>> True, >>> False]
 
+  a := 0
+  match:
+    when (a > 0) -> >>> "positive"
+    when (a < 0) -> >>> "negative"
+    when True -> >>> "zero"
+
+  if[True, >>> True, >>> False]
 
 >>> "
 Looping
@@ -154,6 +170,8 @@ Matching
 
 block
   match "hello!":
+      int i ->
+          >>> "that's an integer!"
       x when x.endswith["!"] ->
           >>> "exclamative"
       x when x.endswith["?"] ->

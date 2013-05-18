@@ -2,7 +2,7 @@
 import operator
 from functools import reduce
 
-from ..parsing import VOID
+from ..parsing import Void
 from ..lib import (hashstruct, anonstruct, attrdict,
                    hybrid, index, hastag, index)
 NoneType = type(None)
@@ -340,7 +340,7 @@ library_function("pymap")(map)
 library_function(iter)
 library_function(zip)
 
-library_function("VOID")(VOID)
+library_function("Void")(Void)
 
 library_function("%%tuple")(lambda *args: args)
 
@@ -517,8 +517,8 @@ library_function("to")(range)
 
 @library_function("..")
 def to(start, end):
-    if start is VOID: start = None
-    if end is VOID: end = None
+    if start is Void: start = None
+    if end is Void: end = None
     return slice(start, end)
 
 @library_function("by")

@@ -1,6 +1,6 @@
 
 from ..tools.unify import unify_walk, Unification, V, RestVariable
-from ..parsing import parse, Source, ASTModifier, VOID
+from ..parsing import parse, Source, ASTModifier, Void
 from ..lib import hashstruct as hs, ugstr
 
 class ToPattern(ASTModifier):
@@ -49,12 +49,12 @@ class MatcherBuilder(Matcher):
             
         var_v, glom_v = V('var'), V('glom')
 
-        pattern = hs.oper(var_op, hs.value(VOID), var_v)
+        pattern = hs.oper(var_op, hs.value(Void), var_v)
         def makev(name):
             return (V(name),)*2
 
         v2 = V('variable')
-        pattern2 = hs.oper(glom_op, hs.value(VOID), glom_v)
+        pattern2 = hs.oper(glom_op, hs.value(Void), glom_v)
         def makev2(name):
             v = V(name)
             return (RestVariable(v), v)

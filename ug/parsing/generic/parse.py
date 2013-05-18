@@ -7,7 +7,7 @@ from ...tools import exc
 
 
 __all__ = [
-    "VOID",
+    "Void",
     "Token", "NodeToken",
     "SubTokenizer", "subtok_rule", "Tokenizer",
     "parse_op_description", "OperatorGroup", "OperatorGroups",
@@ -25,19 +25,19 @@ class SyntaxError(exc.RichException, exc.SyntaxError):
 ### TOKENIZER ###
 #################
 
-class VOID:
+class Void:
     def __str__(self):
-        return "VOID"
+        return "Void"
     def __sub__(self, other):
         return -other
     def __add__(self, other):
         return +other
     def __repr__(self):
-        return "VOID"
+        return "Void"
     def __descr__(self, descr):
-        return ({"@VOID"}, '∅')
+        return ({"@Void"}, '∅')
 
-VOID = VOID()
+Void = Void()
 
 
 class Token:
@@ -213,7 +213,7 @@ class Tokenizer:
                 pl = last.loc.end
                 pr = current.loc.start
                 ws = Token("infix", ("",), (wsl, wsr), loc = Location(self.source, (pl, pr)))
-                void = Token("id", (VOID,), (wsl, wsr), loc = Location(self.source, (pl, pr)))
+                void = Token("id", (Void,), (wsl, wsr), loc = Location(self.source, (pl, pr)))
                 t = t1 + "/" + t2
                 if t in ["id/id"]:
                     return [ws] + helper(None, i)
@@ -321,7 +321,7 @@ class Tokenizer:
             return self.dump_buffer()
         elif self.last and self.last.kind != "id":
             self.last = None
-            return [Token("id", (VOID,), (0, 0), loc = Location(self.source, (0, 0)))]
+            return [Token("id", (Void,), (0, 0), loc = Location(self.source, (0, 0)))]
         else:
             return False
 

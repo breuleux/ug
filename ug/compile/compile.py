@@ -4,7 +4,7 @@ from functools import reduce
 
 from . import lib
 
-from ..parsing import decode as de, VOID, Location, SyntaxError
+from ..parsing import decode as de, Void, Location, SyntaxError
 from ..parsing.ug.ast import ASTVisitor, transfer, getloc, setloc, hasloc 
 from ..lib import hashstruct as hs, ugstr, hastag, tag, struct
 pycompile = compile
@@ -270,7 +270,7 @@ class Compiler(ASTVisitor):
 
     def visit_juxt(self, node, *args):
         if len(args) == 0:
-            return transfer(hs.value(VOID), node)
+            return transfer(hs.value(Void), node)
         if len(args) == 1:
             return self.xvisit(args[0])
         f, arg, *rest = args
@@ -410,7 +410,7 @@ class InSeqCompiler(Compiler):
         return node
 
     def visit_macro(self, node, f):
-        return revisit(f(node, hs.value(VOID)))
+        return revisit(f(node, hs.value(Void)))
 
     def visit_restmacro(self, node, value):
         return node
@@ -523,17 +523,17 @@ class ParseLHS(ASTVisitor):
             if not self.allow_guard:
                 raise Exception("when is not allowed here")
             self.guard = y
-            if x == hs.value(VOID):
+            if x == hs.value(Void):
                 return hs.value(None)
             else:
                 return self.visit(x, d = d)
 
-        elif op == "*" and x == hs.value(VOID):
+        elif op == "*" and x == hs.value(Void):
             if not isinstance(y, ugstr):
                 raise Exception("Only plain var right of *")
             return build_fcall(self.hash("star"), self.visit(y, d = d))
 
-        elif op == "**" and x == hs.value(VOID):
+        elif op == "**" and x == hs.value(Void):
             if not isinstance(y, ugstr):
                 raise Exception("Only plain var right of **")
             return build_fcall(self.hash("dstar"), self.visit(y, d = None))
@@ -541,7 +541,7 @@ class ParseLHS(ASTVisitor):
         elif op == "=>":
             if d is not None:
                 raise Exception("Cannot give a type to whole => expression")
-            if x == hs.value(VOID):
+            if x == hs.value(Void):
                 if isinstance(y, hs.juxt):
                     x = y[-1]
                 else:
@@ -552,7 +552,7 @@ class ParseLHS(ASTVisitor):
                                x if isinstance(x, hs.value) else hs2.value(x),
                                self.visit(y, d = None))
 
-        elif op == "." and x == hs.value(VOID):
+        elif op == "." and x == hs.value(Void):
             if not isinstance(y, ugstr):
                 raise Exception("Only plain var right of .")
             return self.visit(hs.value(y), d = d)

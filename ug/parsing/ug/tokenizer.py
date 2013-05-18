@@ -1,7 +1,7 @@
 
 import re
 from .codec import decode as de
-from ..generic.parse import SubTokenizer, Tokenizer, subtok_rule, Token, VOID, SyntaxError
+from ..generic.parse import SubTokenizer, Tokenizer, subtok_rule, Token, Void, SyntaxError
 
 
 # Characters that can be the first character of an identifier.
@@ -218,7 +218,7 @@ def tokenizer_plus_indent(tokenizer):
             if indent > current_indent:
                 indent_stack.append(current_indent)
                 yield Token("infix", [''], (0, 0), loc = tok.loc)
-                yield Token("id", [VOID], (0, 0), loc = tok.loc)
+                yield Token("id", [Void], (0, 0), loc = tok.loc)
                 # print("(")
                 yield Token("prefix", ['('], (0, 0), loc = tok.loc)
                 current_indent = indent
@@ -229,13 +229,13 @@ def tokenizer_plus_indent(tokenizer):
                 while indent_stack:
                     previous_indent = indent_stack.pop()
                     if not first:
-                        yield Token("id", [VOID], (0, 0), loc = tok.loc)
+                        yield Token("id", [Void], (0, 0), loc = tok.loc)
                     else:
                         first = False
                     yield Token("suffix", [')'], (0, 0), loc = tok.loc)
                     if indent == previous_indent:
                         break
-                yield Token("id", [VOID], (0, 0), loc = tok.loc)
+                yield Token("id", [Void], (0, 0), loc = tok.loc)
                 yield Token("infix", ['NL', 0], tok.ws, loc = tok.loc)
                 if indent != previous_indent:
                     raise SyntaxError["indent_mismatch"](

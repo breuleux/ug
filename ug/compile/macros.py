@@ -1,5 +1,5 @@
 
-from ..parsing import decode as de, VOID, Location, SyntaxError
+from ..parsing import decode as de, Void, Location, SyntaxError
 from ..parsing.ug.ast import ASTVisitor, transfer, getloc, setloc, hasloc
 from ..lib import hashstruct as hs, ugstr, hastag, tag, struct
 from .pattern import PatternBank
@@ -62,7 +62,7 @@ compr_matcher = patterns.matcher('compr', 'callcompr')
 @macro("*")
 def star(self, node, args):
     if isinstance(args, hs.square):
-        if args[0] == hs.value(VOID):
+        if args[0] == hs.value(Void):
             return hs.star(args[1])
         else:
             return hs.send(hs.processed("*"), args)
@@ -72,7 +72,7 @@ def star(self, node, args):
 @macro("**")
 def dstar(self, node, args):
     if isinstance(args, hs.square):
-        if args[0] == hs.value(VOID):
+        if args[0] == hs.value(Void):
             return hs.dstar(args[1])
         else:
             return hs.send(hs.processed("**"), args)
@@ -81,14 +81,14 @@ def dstar(self, node, args):
 
 @macro(".")
 def dot(self, node, args):
-    if args[0] == hs.value(VOID):
+    if args[0] == hs.value(Void):
         return hs.value(args[1])
     else:
         raise Exception("Bad args for macro .")
 
 @macro("#")
 def hash(self, node, args):
-    if args[0] == hs.value(VOID):
+    if args[0] == hs.value(Void):
         arg = args[1]
         if isinstance(arg, ugstr):
             arg = hs2.value(arg)
@@ -98,18 +98,18 @@ def hash(self, node, args):
 
 @macro("?")
 def index(self, node, args):
-    if args[0] == hs.value(VOID):
+    if args[0] == hs.value(Void):
         return hs.send(hs.value(lib.index), hs2.tuple(args[1]))
     else:
         raise Exception("Bad args for macro ?")
 
 @macro("!")
 def index(self, node, args):
-    if args[0] == hs.value(VOID):
+    if args[0] == hs.value(Void):
         arg = args[1]
         if isinstance(arg, hs.begin):
             return hs.square(*arg[:])
-        elif arg == hs.value(VOID):
+        elif arg == hs.value(Void):
             return hs.square()
         else:
             return hs.square(arg)
@@ -235,7 +235,7 @@ def colon(self, node, args):
         arg = hs2.juxt(*arg[1:])
     else:
         f = arg
-        arg = setloc(hs.value(VOID), getloc(f).at_start())
+        arg = setloc(hs.value(Void), getloc(f).at_start())
     return hs.juxt(f, hs2.colonargs(arg, body))
 
 @macro("->")

@@ -3,7 +3,7 @@ import ast as pyast
 import exc
 
 from ...lib import hashstruct as hs, struct, ugstr, tag, gettag, hastag
-from ..generic.parse import Token, NodeToken, Bracket, Operator, VOID, SyntaxError
+from ..generic.parse import Token, NodeToken, Bracket, Operator, Void, SyntaxError
 from functools import reduce
 
 
@@ -17,7 +17,7 @@ class ASTException(exc.Exception):
         return str(self)
 
 
-value_void = hs.value(VOID)
+value_void = hs.value(Void)
 
 def mkv(x):
     return hs.value(x)
@@ -108,8 +108,8 @@ def make_ast(node):
                     return mkv(int(n, radix))
             elif cmd == 'str':
                 return hs.string(args[0])
-            elif cmd == VOID:
-                return mkv(VOID)
+            elif cmd == Void:
+                return mkv(Void)
             else:
                 raise ASTException['unsupported_token'](node = node)
 
@@ -121,7 +121,7 @@ def make_ast(node):
                     raise SyntaxError['defective_bracketing'](
                         left = args[0],
                         right = args[1])
-                    # raise Exception("Left and right of bracket should be VOID")
+                    # raise Exception("Left and right of bracket should be Void")
                 return getattr(hs, op.type)(args[2])
             elif isinstance(op, Operator):
                 op = node.op.name
@@ -201,7 +201,7 @@ def collapse(visit, node, cls, name):
         arguments.append(visit(a[1]))
         a = a[0]
     arguments.append(visit(a))
-    arguments = [a for a in reversed(arguments) if a is not VOID and a != hs.value(VOID)]
+    arguments = [a for a in reversed(arguments) if a is not Void and a != hs.value(Void)]
     if len(arguments) == 0:
         raise exc.Exception['mystery']("Investigate how this happened.")
     elif len(arguments) == 1:
@@ -250,7 +250,7 @@ class ASTCollapse(ASTVisitor):
             return expr
 
     def visit_square(self, node, expr):
-        if expr == hs.value(VOID):
+        if expr == hs.value(Void):
             return hs.square()
         expr = self.visit(expr)
         if isinstance(expr, t_seq):
@@ -261,7 +261,7 @@ class ASTCollapse(ASTVisitor):
         # return transloc(rval, node)
 
     def visit_curly(self, node, expr):
-        if expr == hs.value(VOID):
+        if expr == hs.value(Void):
             return hs.curly()
         expr = self.visit(expr)
         if isinstance(expr, t_seq):
@@ -275,7 +275,7 @@ class ASTCollapse(ASTVisitor):
         if isinstance(expr, t_string):
             return mkv(expr[0])
             # return transloc(mkv(expr[0]), node)
-        elif expr == hs.value(VOID):
+        elif expr == hs.value(Void):
             return mkv("")
         else:
             raise SyntaxError['illegal_in_quote'](

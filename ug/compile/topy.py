@@ -5,7 +5,7 @@ pycompile = compile
 
 from . import lib
 from ..lib import hashstruct as hs, anonstruct, attrdict, hybrid, index, hastag, struct
-from ..parsing.ug.ast import ASTVisitor, VOID, transloc, getloc, hasloc
+from ..parsing.ug.ast import ASTVisitor, Void, transloc, getloc, hasloc
 from .compile import UniqueVar, hs2
 
 
@@ -105,7 +105,7 @@ class UGToPy(ASTVisitor):
             r = hs.Num(value)
         elif isinstance(value, str):
             r = hs.Str(str(value))
-        elif value in (None, True, False, VOID):
+        elif value in (None, True, False, Void):
             r = hs.Name(str(value), hs.Load())
         elif value in lib.rev_ug_library:
             r = hs.Name(lib.rev_ug_library[value], hs.Load())
@@ -132,7 +132,7 @@ class UGToPy(ASTVisitor):
             spec = ops[obj]
             if isinstance(msg, hs.tuple):
                 left, right = msg[:]
-                if left == hs.value(VOID):
+                if left == hs.value(Void):
                     r = hs.UnaryOp(spec.unary(), self.visit(right))
                 else:
                     if getattr(spec, 'compare', False):

@@ -305,6 +305,11 @@ class UGToPyCatch(UGToPy):
 
 
 def convert_to_py_ast(ast):
+    """
+    Convert the AST to Python's own AST objects and translate
+    the locations represented by Location objects into Python's
+    lineno and col_offset fields.
+    """
     if isinstance(ast, struct):
         arguments = list(map(convert_to_py_ast, ast[:]))
         node = getattr(pyast, type(ast).__name__)(*arguments)

@@ -33,7 +33,7 @@ Current features
   construct.
 * Optional "typing", which is in fact part of the pattern matching
   syntax.
-* Ad hoc structures: `#point[1, 2]` declares a kind of tuple of type
+* Ad hoc structures: `#point[1, 2]` instantiates a kind of tuple of type
   `#point`, `#point[x = 1, y = 2]` an object with named fields. They
   can be pattern matched.
 * Exception handling operator: `result = (1/0 !! None)` or
@@ -135,14 +135,14 @@ and so on.
 
 * This is not done yet, but data structures will follow a more
   consistent pattern than they do in Python:
-  * Ordered collections (square brackets):
+  * Ordered collections (square brackets)
     * Immutable
       * tuple: `[1, 2, 3]`
       * immutable ordered dict: `[a = 1, b = 2]` or `["a" => 1, "b" => 2]`
     * Mutable (`mut` macro)
       * list: `mut [1, 2, 3]`
       * ordered dict: `mut [a = 1, b = 2]` or `mut ["a" => 1, "b" => 2]`
-  * Unordered collections (curly brackets):
+  * Unordered collections (curly brackets)
     * Immutable
       * frozenset: `{1, 2, 3}`
       * immutable dict: `{a = 1, b = 2}` or `{"a" => 1, "b" => 2}`
@@ -170,4 +170,13 @@ Python's magical `__call__`, `__getattr__`, `__setattr__`,
 `__getitem__` and `__setitem__` methods are all collapsed into a
 single magic method in UG: `__recv__`. Defining a function with
 pattern matching essentially implements `__recv__` in a singleton.
+
+If you install [Terminus](https://github.com/breuleux/terminus), you
+can look at pretty versions of the [tokenizer's
+output](http://i.imgur.com/VH6dqRE.png) as well as the
+[AST](http://i.imgur.com/V6nJZi5.png) before and after the application
+of the operator macros. [Syntax
+errors](http://i.imgur.com/qPcugrM.png) also require that terminal to
+show up nicely at the moment (that'll be fixed in due time, of
+course).
 

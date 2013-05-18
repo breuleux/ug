@@ -11,7 +11,7 @@ folder. They can be executed with the command: `ug eval
 <filename>`. You can also execute bits of code with `ug eval -s
 <code>`.
 
-Here's what a recursive implementation of `fib` in UG looks like:
+Here's what a recursive implementation of fibonacci looks like in UG:
 
     fib =
         [0] -> 0

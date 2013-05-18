@@ -7,7 +7,7 @@ fib1 =
 
 fib2 = [n] ->
     [a, b] = [0, 1]
-    do ! 1 to n map i ->
+    1 to n each i ->
         [a, b] := [b, a + b]
     b
 

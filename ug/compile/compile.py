@@ -284,7 +284,7 @@ class Compiler(ASTVisitor):
             return hs.send(f, arg)
 
     def visit_oper(self, node, op, a, b):
-        return revisit(hs.juxt(op, hs2.square(a, b)))
+        return revisit(hs.juxt(op, hs2.tuple(a, b)))
 
     def visit_begin(self, node, *args):
         newargs = accumulate_sequence(self, args, "begin")
@@ -410,7 +410,7 @@ class InSeqCompiler(Compiler):
         return node
 
     def visit_macro(self, node, f):
-        return revisit(f(node, hs.value(Void)))
+        return revisit(f(self, node, hs.value(Void)))
 
     def visit_restmacro(self, node, value):
         return node

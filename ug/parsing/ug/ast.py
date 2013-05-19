@@ -285,6 +285,8 @@ class ASTCollapse(ASTVisitor):
 
     def visit_oper(self, node, op, a, b):
         # return transloc(hs.oper(self.visit(op), self.visit(a), self.visit(b)), node)
+        if a == hs.value(Void) and b == hs.value(Void):
+            return self.visit(op)
         return hs.oper(self.visit(op), self.visit(a), self.visit(b))
 
     def visit_generic(self, node):

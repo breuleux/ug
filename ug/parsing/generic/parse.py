@@ -321,7 +321,8 @@ class Tokenizer:
             return self.dump_buffer()
         elif self.last and self.last.kind != "id":
             self.last = None
-            return [Token("id", (Void,), (0, 0), loc = Location(self.source, (0, 0)))]
+            return [Token("id", (Void,), (0, 0),
+                          loc = Location(self.source, (self.mark, self.mark)))]
         else:
             return False
 

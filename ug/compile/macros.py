@@ -59,69 +59,129 @@ compr_matcher = patterns.matcher('compr', 'callcompr')
 
 
 
+def prefix_macro(name):
+    def mac(f):
+        def repl(self, node, args):
+            if isinstance(args, (hs.square, hs.tuple)):
+                orig = args
+                args = args[:]
+                if not args or len(args) > 2:
+                    raise SyntaxError['prefix_macro/wrong_arity'](
+                        num = len(args),
+                        macro_name = name,
+                        node = node,
+                        argument = orig
+                        )
+                elif len(args) == 1:
+                    arg = args[0]
+                elif len(args) == 2:
+                    if args[0] != hs.value(Void):
+                        raise SyntaxError['prefix_macro/wrong_arity'](
+                            num = "void",
+                            macro_name = name,
+                            node = node,
+                            argument = orig
+                            )
+                    arg = args[1]
+                return f(self, node, orig, arg)
+            else:
+                raise SyntaxError['prefix_macro/invalid_argument'](
+                    macro_name = name,
+                    node = node,
+                    argument = args
+                    )
+        return macro(name)(repl)
+    return mac
+
+
+def infix_macro(name):
+    def mac(f):
+        def repl(self, node, args):
+            if isinstance(args, (hs.square, hs.tuple)):
+                orig = args
+                args = args[:]
+                if len(args) != 2:
+                    raise SyntaxError['infix_macro/wrong_arity'](
+                        num = len(args),
+                        macro_name = name,
+                        node = node,
+                        argument = orig
+                        )
+                elif args[0] == hs.value(Void) or args[1] == hs.value(Void):
+                    raise SyntaxError['infix_macro/wrong_arity'](
+                        num = "void",
+                        macro_name = name,
+                        node = node,
+                        argument = orig
+                        )
+                else:
+                    return f(self, node, orig, *args)
+            else:
+                raise SyntaxError['infix_macro/invalid_argument'](
+                    macro_name = name,
+                    node = node,
+                    argument = args
+                    )
+        return macro(name)(repl)
+    return mac
+
+
+def wrong(node, m = ""):
+    return SyntaxError['wrong'](
+        message = "There is something wrong here. " + m,
+        node = node)
+
+
+def wrong_use(mac, node):
+    return SyntaxError['macro/wrong_use'](
+        message = "Macro " + mac + " was used incorrectly.",
+        node = node)
+
+
+@prefix_macro(".")
+def dot(self, node, args, arg):
+    return hs.value(arg)
+
+@prefix_macro("#")
+def hash(self, node, args, arg):
+    if isinstance(arg, ugstr):
+        arg = hs2.value(arg)
+    return hs.send(hs.value(lib.hashstruct), arg)
+
+@prefix_macro("?")
+def index(self, node, args, arg):
+    return hs.send(hs.value(lib.index), hs2.tuple(arg))
+
+@prefix_macro("!")
+def index(self, node, args, arg):
+    if isinstance(arg, hs.begin):
+        return hs.square(*arg[:])
+    elif arg == hs.value(Void):
+        return hs.square()
+    else:
+        return hs.square(arg)
+
+
 @macro("*")
 def star(self, node, args):
-    if isinstance(args, hs.square):
-        if args[0] == hs.value(Void):
-            return hs.star(args[1])
-        else:
-            return hs.send(hs.processed("*"), args)
+    if isinstance(args, hs.tuple) and args[0] == hs.value(Void):
+        return hs.star(args[1])
     else:
-        raise Exception("Bad args for macro *")
+        return hs.send(hs.processed("*"), args)
 
 @macro("**")
 def dstar(self, node, args):
-    if isinstance(args, hs.square):
-        if args[0] == hs.value(Void):
-            return hs.dstar(args[1])
-        else:
-            return hs.send(hs.processed("**"), args)
+    if isinstance(args, hs.tuple) and args[0] == hs.value(Void):
+        return hs.dstar(args[1])
     else:
-        raise Exception("Bad args for macro **")
-
-@macro(".")
-def dot(self, node, args):
-    if args[0] == hs.value(Void):
-        return hs.value(args[1])
-    else:
-        raise Exception("Bad args for macro .")
-
-@macro("#")
-def hash(self, node, args):
-    if args[0] == hs.value(Void):
-        arg = args[1]
-        if isinstance(arg, ugstr):
-            arg = hs2.value(arg)
-        return hs.send(hs.value(lib.hashstruct), arg)
-    else:
-        raise Exception("Bad args for macro #")
-
-@macro("?")
-def index(self, node, args):
-    if args[0] == hs.value(Void):
-        return hs.send(hs.value(lib.index), hs2.tuple(args[1]))
-    else:
-        raise Exception("Bad args for macro ?")
-
-@macro("!")
-def index(self, node, args):
-    if args[0] == hs.value(Void):
-        arg = args[1]
-        if isinstance(arg, hs.begin):
-            return hs.square(*arg[:])
-        elif arg == hs.value(Void):
-            return hs.square()
-        else:
-            return hs.square(arg)
-    else:
-        raise Exception("Bad args for macro !")
+        return hs.send(hs.processed("**"), args)
 
 @macro("=>")
 def assoc(self, node, args):
-    if isinstance(args, hs.square):
+    if isinstance(args, hs.tuple):
         return hs.assoc(args[0], args[1])
     else:
-        raise Exception("Bad args for macro =>")
+        raise wrong_use("=>", node)
 
 @macro("test")
 def test(self, node, args):
@@ -146,7 +206,8 @@ class ParseLHSAssign(ParseLHS):
             self.register_variable(node, None)
             return hs.value("_")
         else:
-            raise Exception("wrong lhs", node)
+            raise wrong(node,
+                        "The evaluation of this expression did not yield a #send node.")
 
 @macro(":=")
 def assign(self, node, args):
@@ -187,6 +248,8 @@ def bangbang(self, node, args):
     expr, handler = args[:]
 
     arrows = []
+    where_finally = None
+    where_else = None
     finally_ = None
     else_ = None
 
@@ -195,27 +258,50 @@ def bangbang(self, node, args):
     else:
         instructions = handler[:]
 
+    def mkerr(*nodes):
+        names = {hs.arrow: '-> clause',
+                 hs.success_arrow1: 'success clause',
+                 hs.success_arrow2: 'success clause',
+                 hs.finally_arrow: 'finally clause'}
+        return SyntaxError['wrong_order'](
+            context = 'the !! macro',
+            expected = ['-> clause(s)',
+                        'success clause (at most one)',
+                        'finally clause (at most one)'],
+            found = [names[type(m)] for x, m in nodes],
+            node = node,
+            nodes = [x for x, m in nodes])
+
     for entry in instructions:
         m = apply_patterns(arrow_matcher, entry)
         if isinstance(m, hs.arrow):
-            if else_ or finally_:
-                raise Exception("bad !! A")
+            if else_:
+                raise mkerr(where_else, (entry, m))
+            if finally_:
+                raise mkerr(where_finally, (entry, m))
             arrows.append(entry)
         elif isinstance(m, hs.success_arrow1):
-            if else_ or finally_:
-                raise Exception("bad !! B")
+            if else_:
+                raise mkerr(where_else, (entry, m))
+            if finally_:
+                raise mkerr(where_finally, (entry, m))
             else_ = ("_", m.rhs)
+            where_else = (entry, m)
         elif isinstance(m, hs.success_arrow2):
-            if else_ or finally_:
-                raise Exception("bad !! B")
-            lhs = hs.juxt(*m.lhs)
+            if else_:
+                raise mkerr(where_else, (entry, m))
+            if finally_:
+                raise mkerr(where_finally, (entry, m))
+            lhs = hs2.juxt(*m.lhs)
             else_ = (lhs, m.rhs)
+            where_else = (entry, m)
         elif isinstance(m, hs.finally_arrow):
             if finally_:
-                raise Exception("bad !! C")
+                raise mkerr(where_finally, (entry, m))
             finally_ = m.rhs
+            where_finally = (entry, m)
         elif else_ or finally_:
-            raise Exception("bad !! D")
+            raise wrong(entry)
         else:
             arrows = [hs.oper("->", "_", handler)]
             break
@@ -309,33 +395,27 @@ macro("else")(invalid_here(
         requires = ["if", "elif"]))
 
 
+
+
 @macro("not")
 def mac_not(self, node, cond):
     return hs["if"](cond, hs.value(False), hs.value(True))
 
-@macro("and")
-def mac_and(self, node, args):
-    if isinstance(args, hs.square):
-        cond, rest = args[:]
-        v = UniqueVar("temp")
-        return hs.begin(
-            hs.declare(v, None),
-            hs.assign(v, cond),
-            hs["if"](v, rest, v))
-    else:
-        raise Exception("Bad and")
+@infix_macro("and")
+def mac_and(self, node, args, cond, rest):
+    v = UniqueVar("temp")
+    return hs.begin(
+        hs.declare(v, None),
+        hs.assign(v, cond),
+        hs["if"](v, rest, v))
 
-@macro("or")
-def mac_or(self, node, args):
-    if isinstance(args, hs.square):
-        cond, rest = args[:]
-        v = UniqueVar("temp")
-        return hs.begin(
-            hs.declare(v, None),
-            hs.assign(v, cond),
-            hs["if"](v, v, rest))
-    else:
-        raise Exception("Bad or")
+@infix_macro("or")
+def mac_or(self, node, args, cond, rest):
+    v = UniqueVar("temp")
+    return hs.begin(
+        hs.declare(v, None),
+        hs.assign(v, cond),
+        hs["if"](v, v, rest))
 
 
 @macro("if")
@@ -375,7 +455,7 @@ def mac_if(self, node, args):
 
         return hs.restmacro(find_else)
 
-    elif isinstance(args, hs.square):
+    elif isinstance(args, (hs.tuple, hs.square)):
         args = list(args[:])
         if len(args) == 2:
             args.append(hs.value(None))

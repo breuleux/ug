@@ -48,10 +48,11 @@ class prerror:
             # rules.css_text_decoration(".hl2", "underline")
             # rules.css_text_decoration(".hl3", "underline")
             e = errors.process_error(value)
+            pr = boxy_terminus(rules = rules)
             if e is None:
-                return
+                pr(value)
+                return True
             else:
-                pr = boxy_terminus(rules = rules)
                 value.__traceback__ = None
                 pr(e)
                 return True

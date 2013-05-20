@@ -44,8 +44,13 @@ def library_function(name):
     else:
         return library_function(name.__name__)(name)
 
+
 def opaque_function(f):
     return library_function("%%" + f.__name__)(f)
+
+
+
+
 
 
 operators = """
@@ -84,12 +89,12 @@ for name, name_in_module in operators:
 
 @library_function("in")
 def ugin(a, b):
+    _SHOW_FRAME = False
     return a in b
 
 
-
-
 def _convert_formula(f):
+    _SHOW_FRAME = False
 
     if isinstance(f, tuple):
         new = []
@@ -192,6 +197,8 @@ def _convert_formula(f):
 
 
 def _deconstruct(f, dctor, value):
+    _SHOW_FRAME = False
+
     if dctor is None:
         if isinstance(value, (tuple, list, dict, hybrid)):
             return value
@@ -208,6 +215,7 @@ def _deconstruct(f, dctor, value):
             pattern = f)
 
 def _deconstruct2(value, f):
+    _SHOW_FRAME = False
 
     if isinstance(f, str):
         return (value,)
@@ -300,10 +308,13 @@ def _deconstruct2(value, f):
 @library_function("@")
 class Checker:
     def __init__(self, void, f):
+        _SHOW_FRAME = False
         self.f = f
     def __check__(self, value):
+        _SHOW_FRAME = False
         return self.f(value)
     def __call__(self, value):
+        _SHOW_FRAME = False
         return self.f(value)
 
 
@@ -311,11 +322,13 @@ class Checker:
 class raiser:
     @staticmethod
     def __recv__(message):
+        _SHOW_FRAME = False
         raise message
 
 
 @library_function
 def check(checker, value, pattern = None):
+    _SHOW_FRAME = False
 
     try:
         checker = getattr(checker, '__check__')
@@ -344,6 +357,7 @@ class check_equal:
     def __init__(self, value):
         self.value = value
     def __check__(self, other):
+        _SHOW_FRAME = False
         if self.value == other:
             return other
         raise UGTypeError['bad_value'](
@@ -359,6 +373,7 @@ class Deconstructor:
         self._formula = _convert_formula(formula)
 
     def __call__(self, value):
+        _SHOW_FRAME = False
         return _deconstruct2(value, self._formula)
 
     def __str__(self):
@@ -384,6 +399,7 @@ library_function("%%tuple")(lambda *args: args)
 
 @library_function
 def send(obj, msg):
+    _SHOW_FRAME = False
     if isinstance(msg, tuple):
         return obj(*msg)
     elif isinstance(msg, dict):
@@ -408,6 +424,7 @@ def send(obj, msg):
 
 @library_function
 def send_safeguard(obj, msg):
+    _SHOW_FRAME = False
     try:
         return obj.__recv_safeguard__(msg)
     except AttributeError:
@@ -426,6 +443,7 @@ def send_safeguard(obj, msg):
 
 @library_function("map")
 def ugmap(seq, obj):
+    _SHOW_FRAME = False
     for entry in seq:
         result = send_safeguard(obj, entry)
         if isinstance(result, hs.ok):
@@ -437,6 +455,7 @@ def ugmap(seq, obj):
 
 @library_function("each")
 def ugeach(seq, obj):
+    _SHOW_FRAME = False
     for entry in seq:
         result = send_safeguard(obj, entry)
         if isinstance(result, (hs.ok, hs.guard_fail)):
@@ -448,6 +467,7 @@ def ugeach(seq, obj):
 
 @library_function
 def patch_dict(*args):
+    _SHOW_FRAME = False
     if len(args) == 0:
         return {}
     else:
@@ -458,6 +478,7 @@ def patch_dict(*args):
 
 @library_function
 def patch_tuple(*args):
+    _SHOW_FRAME = False
     if len(args) == 0:
         return ()
     elif len(args) == 1:
@@ -467,6 +488,7 @@ def patch_tuple(*args):
 
 @library_function
 def assign(obj, item, value):
+    _SHOW_FRAME = False
     if isinstance(item, index):
         obj[item.item] = value
     elif isinstance(item, str):
@@ -478,6 +500,7 @@ def assign(obj, item, value):
 class ugobj:
 
     def __call__(self, *args, **kwargs):
+        _SHOW_FRAME = False
         if kwargs:
             if args:
                 return self.__recv__(hybrid(args, kwargs))
@@ -487,21 +510,25 @@ class ugobj:
             return self.__recv__(args)
 
     def __getattr__(self, attr):
+        _SHOW_FRAME = False
         if attr.startswith('__'):
             return getattr(super(), attr)
         else:
             return self.__recv__(attr)
 
     def __getitem__(self, item):
+        _SHOW_FRAME = False
         return self.__recv__(index(item))
 
     def __setattr__(self, attr, value):
+        _SHOW_FRAME = False
         if attr.startswith('__'):
             setattr(super(), attr, value)
         else:
             return self.__recv__(hs.assign(attr, value))
 
     def __setitem__(self, item, value):
+        _SHOW_FRAME = False
         return self.__recv__(hs.assign(index(item), value))
 
 
@@ -511,6 +538,7 @@ def make_object(*specifications):
     class R(ugobj):
 
         def __recv_safeguard__(self, arg):
+            _SHOW_FRAME = False
             errors = []
             guards = []
             for deconstructor, guard, f in specifications:
@@ -528,6 +556,7 @@ def make_object(*specifications):
             return hs.guard_fail(guards)
 
         def __recv__(self, arg):
+            _SHOW_FRAME = False
             errors = []
             for deconstructor, guard, f in specifications:
                 try:
@@ -546,6 +575,7 @@ def make_object(*specifications):
 
 @library_function
 def do(gen):
+    _SHOW_FRAME = False
     for x in gen:
         pass
 
@@ -560,6 +590,7 @@ def to(start, end):
 
 @library_function("by")
 def by(r, step):
+    _SHOW_FRAME = False
     if isinstance(r, slice):
         return slice(r.start, r.stop, step)
     elif isinstance(r, range):
@@ -572,6 +603,7 @@ def by(r, step):
 
 @library_function
 def trycatch(thunk, handler, else_, finally_):
+    _SHOW_FRAME = False
     try:
         rval = thunk()
     except Exception as e:
@@ -595,17 +627,20 @@ library_function("nonzero")(bool)
 
 @library_function
 def apply_guard(guard):
+    _SHOW_FRAME = False
     if not guard():
         raise GuardError(guard = guard)
 
 
 class ugtuple(tuple):
     def __init__(self, t):
+        _SHOW_FRAME = False
         super().__init__(t)
         self.__tags__ = {}
 
 @library_function
 def maytag(obj, name, value):
+    _SHOW_FRAME = False
     if isinstance(obj, tuple):
         obj = ugtuple(obj)
     elif isinstance(obj, str):

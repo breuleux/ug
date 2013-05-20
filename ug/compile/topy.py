@@ -4,8 +4,9 @@ import ast as pyast
 pycompile = compile
 
 from . import lib
-from ..lib import hashstruct as hs, anonstruct, attrdict, hybrid, index, hastag, struct
-from ..parsing.ug.ast import ASTVisitor, Void, transloc, getloc, hasloc
+from ..lib import (hashstruct as hs, anonstruct, attrdict, hybrid, index,
+                   hastag, struct, tag, gettag)
+from ..parsing.ug.ast import ASTVisitor, Void, transloc, transfer, getloc, hasloc
 from .compile import UniqueVar, hs2
 
 
@@ -48,6 +49,7 @@ class UGToPy(ASTVisitor):
     def __init__(self, scope):
         self.scope = scope
         self.blocks = [[]]
+        self.values = {}
         super().__init__(False)
 
     def add_declare(self, v):
@@ -88,19 +90,40 @@ class UGToPy(ASTVisitor):
             rval.append(transloc(builder(last), last))
         return rval
 
+    def visit(self, node, name):
 
-    def visit_ugstr(self, node):
+        if hastag(node, "tag_location"):
+            thetag = gettag(node, "tag_location")
+            if thetag:
+                copy = tag(transfer(type(node)(*node[:]), node),
+                           "tag_location",
+                           False)
+                node = hs.send(hs.value(lib.maytag),
+                               hs.tuple(copy,
+                                        hs.value("location"),
+                                        hs.value(thetag)))
+        if hastag(node, 'name'):
+            name2 = gettag(node, 'name')
+            if name is not None:
+                name = name + ':' + name2
+            else:
+                name = name2
+
+        result = super().visit(node, name = name)
+        return result
+
+    def visit_ugstr(self, node, name):
         r = hs.Name(str(node), hs.Load())
         return self.register(r, r, node)
 
-    def visit_str(self, node):
-        return self.visit_ugstr(node)
+    def visit_str(self, node, name):
+        return self.visit_ugstr(node, name = name)
 
-    def visit_UniqueVar(self, node):
+    def visit_UniqueVar(self, node, name):
         r = hs.Name(str(node), hs.Load())
         return self.register(r, r, node)
 
-    def visit_value(self, node, value):
+    def visit_value(self, node, value, name):
         if isinstance(value, (int, float)):
             r = hs.Num(value)
         elif isinstance(value, str):
@@ -110,15 +133,20 @@ class UGToPy(ASTVisitor):
         elif value in lib.rev_ug_library:
             r = hs.Name(lib.rev_ug_library[value], hs.Load())
         else:
-            raise Exception("unknown value", value)
+            v = transloc(UniqueVar("v"), node)
+            self.values[str(v)] = value
+            r = hs.Name(str(v), hs.Load())
+            return self.register(r, r, node)
+        # else:
+        #     raise Exception("unknown value", value)
         return self.register(r, r, node)
 
-    def visit_special(self, node, value):
+    def visit_special(self, node, value, name):
         r = hs.Name('%%' + str(value), hs.Load())
         return self.register(r, r, node)
 
-    def visit_tuple(self, node, *args):
-        newargs = list(map(self.visit, args))
+    def visit_tuple(self, node, *args, name = None):
+        newargs = [self.visit(arg, name) for arg in args]
         c = hs.Call(transloc(hs.Name('%%tuple', hs.Load()), node),
                        newargs,
                        [],
@@ -126,91 +154,96 @@ class UGToPy(ASTVisitor):
                        None)
         return self.assign_and_register(c, node)
 
-    def visit_send(self, node, obj, msg):
+    def visit_send(self, node, obj, msg, name):
 
         if False and isinstance(obj, (hs.special, hs.value)) and obj in ops:
             spec = ops[obj]
             if isinstance(msg, hs.tuple):
                 left, right = msg[:]
                 if left == hs.value(Void):
-                    r = hs.UnaryOp(spec.unary(), self.visit(right))
+                    r = hs.UnaryOp(spec.unary(), self.visit(right, name))
                 else:
                     if getattr(spec, 'compare', False):
-                        r = hs.Compare(self.visit(left),
+                        r = hs.Compare(self.visit(left, name),
                                              [spec.binary()],
-                                             [self.visit(right)])
+                                             [self.visit(right, name)])
                     else:
-                        r = hs.BinOp(self.visit(left),
+                        r = hs.BinOp(self.visit(left, name),
                                            spec.binary(),
-                                           self.visit(right))
+                                           self.visit(right, name))
             else:
                 raise Exception("Sending to strange thing:", node)
         elif isinstance(msg, hs.tuple):
-            r = hs.Call(self.visit(obj),
-                           list(map(self.visit, msg[:])),
+            r = hs.Call(self.visit(obj, name),
+                           [self.visit(m, name) for m in msg[:]],
                            [],
                            None,
                            None)
         else:
             r = hs.Call(hs.Name('send', hs.Load()),
-                           [self.visit(obj), self.visit(msg)],
+                           [self.visit(obj, name), self.visit(msg, name)],
                            [],
                            None,
                            None)
 
         return self.assign_and_register(r, node)
 
-    def visit_begin(self, node, *stmts):
+    def visit_begin(self, node, *stmts, name = None):
         rval = hs.Name("None", hs.Load())
         for stmt in stmts:
-            rval = self.visit(stmt)
+            rval = self.visit(stmt, name)
         return rval
 
-    def visit_declaring(self, node, variables, body):
+    def visit_declaring(self, node, variables, body, name):
         for v in variables:
             self.add_declare(v)
-        return self.visit(body)
+        return self.visit(body, name)
 
-    def visit_assign(self, node, var, value):
+    def visit_assign(self, node, var, value, name):
         self.add_assign(var)
         pyvar = transloc(hs.Name(str(var), hs.Load()), var)
         stmt = transloc(hs.Assign([transloc(hs.Name(str(var), hs.Store()), var)],
-                                     self.visit(value)), node)
+                                     self.visit(value, name)), node)
         return self.register(stmt, pyvar, node)
 
-    def visit_if(self, node, test, ift, iff):
+    def visit_if(self, node, test, ift, iff, name):
         v = transloc(UniqueVar("if_result"), node)
-        test = self.visit(test)
+        test = self.visit(test, name)
         _if = UGToPyIf(test, v, self.scope)
-        _if.visit(ift)
+        _if.visit(ift, name)
         _if.push()
-        _if.visit(iff)
+        _if.visit(iff, name)
         c = _if.create()
+        self.values.update(_if.values)
         return self.register(c, transloc(hs.Name(str(v), hs.Load()), v), node)
 
-    def visit_catch(self, node, expr, handler):
+    def visit_catch(self, node, expr, handler, name):
         v = transloc(UniqueVar("catch_result"), node)
         _catch = UGToPyCatch(v, self.scope)
-        _catch.visit(expr)
+        _catch.visit(expr, name)
         _catch.push()
-        _catch.visit(handler)
+        _catch.visit(handler, name)
         c = _catch.create()
+        self.values.update(_catch.values)
         return self.register(c, transloc(hs.Name(str(v), hs.Load()), v), node)
 
-    def visit_return(self, node, v):
-        r = hs.Return(self.visit(v))
+    def visit_return(self, node, v, name):
+        r = hs.Return(self.visit(v, name))
         return self.register(r, hs.Name("unreachable", hs.Load()), node)
 
-    def visit_lambda(self, node, arguments, body):
-        name = transloc(UniqueVar("τ"), node)
+    def visit_lambda(self, node, arguments, body, name):
+        # name = transloc(UniqueVar("τ"), node)
+        if name is None:
+            name = "<lambda>"
         args = [hs.arg(str(arg), None) for arg in arguments]
         r = UGToPyDef(str(name),
                       hs.arguments(args,
                                       None, None, [], None, None, [], []))
-        r.visit(body)
-        r = r.create()
-        self.register(r, hs.Name(str(name), hs.Load()), node)
-        return self.visit(hs2.declaring([name], name))
+        r.visit(body, name + "->")
+        fn = r.create()
+        self.values.update(r.values)
+        self.register(fn, hs.Name(str(name), hs.Load()), node)
+        return self.visit(hs2.declaring([name], name), name)
 
     def visit_generic(self, node):
         raise Exception("Unknown node", node)
@@ -304,6 +337,29 @@ class UGToPyCatch(UGToPy):
                 [])
 
 
+def order_monotonic(nodes):
+    minl, minc = 0, 0
+    candidates = list(nodes)
+    while candidates:
+        node = candidates.pop(0)
+        if isinstance(node, (list, tuple)):
+            candidates = list(node) + candidates
+            continue
+        if isinstance(node, pyast.AST):
+            if hasattr(node, 'lineno'):
+                if node.lineno < minl:
+                    node.lineno = minl
+                if node.lineno == minl and node.col_offset < minc:
+                    node.col_offset = minc
+                else:
+                    minl, minc = node.lineno, node.col_offset
+            else:
+                node.lineno = minl
+                node.col_offset = minc
+            candidates = [getattr(node, f)
+                          for f in node._fields] + candidates
+
+
 def convert_to_py_ast(ast):
     """
     Convert the AST to Python's own AST objects and translate
@@ -312,6 +368,7 @@ def convert_to_py_ast(ast):
     """
     if isinstance(ast, struct):
         arguments = list(map(convert_to_py_ast, ast[:]))
+        # order_monotonic(arguments)
         node = getattr(pyast, type(ast).__name__)(*arguments)
         if hasloc(ast):
             loc = getloc(ast)
@@ -321,7 +378,9 @@ def convert_to_py_ast(ast):
                 node.col_offset = col
         return node
     elif isinstance(ast, (list, tuple)):
-        return list(map(convert_to_py_ast, ast[:]))
+        results = list(map(convert_to_py_ast, ast[:]))
+        # order_monotonic(results)
+        return results
     else:
         return ast
 
@@ -331,7 +390,7 @@ def evaluate(ast, source = None):
 
     ctor = UGToPyDef("F")
 
-    ctor.visit(ast)
+    ctor.visit(ast, None)
     py = ctor.create()
     py = convert_to_py_ast(py)
 
@@ -339,12 +398,18 @@ def evaluate(ast, source = None):
         py = pyast.Expression(py)
     elif isinstance(py, pyast.stmt):
         py = pyast.Module([py])
-    py = pyast.fix_missing_locations(py)
 
-    # code = compile(py, source and source.url or "<string>", 'exec')
-    code = compile(py, "<string>", 'exec')
+
+    order_monotonic([py])
+    py = pyast.fix_missing_locations(py)
+    # pr(py)
+
+
+    code = compile(py, source and source.url or "<string>", 'exec')
+    # code = compile(py, "<string>", 'exec')
 
     d = dict(lib.ug_library)
+    d.update(ctor.values)
 
     exec(code, d)
     return d['F']()
@@ -365,47 +430,47 @@ def pprint(node, offset = 0):
 
 
 
-# from descr import boxy_terminus
-# pr = boxy_terminus()
-# import ast
-# from descr.registry import types_registry
-# from descr.html import html_boxy, HTMLRuleBuilder
+from descr import boxy_terminus
+pr = boxy_terminus()
+import ast
+from descr.registry import types_registry
+from descr.html import html_boxy, HTMLRuleBuilder
 
-# class ASTDescriber(ast.NodeVisitor):
+class ASTDescriber(ast.NodeVisitor):
 
-#     def __init__(self, recurse):
-#         self.recurse = recurse
+    def __init__(self, recurse):
+        self.recurse = recurse
 
-#     # def generic_visit(self, node):
-#     #     if not isinstance(node, ast.AST):
-#     #         return self.recurse(node)
-#     #     name = type(node).__name__
-#     #     classes = {"@ast.AST", "@AST."+name, "object", "+"+name}
-#     #     results = [classes]
-#     #     for fieldname, child in ast.iter_fields(node):
-#     #         results.append(({"field", "+" + fieldname}, self.visit(child)))
-#     #     return results
+    # def generic_visit(self, node):
+    #     if not isinstance(node, ast.AST):
+    #         return self.recurse(node)
+    #     name = type(node).__name__
+    #     classes = {"@ast.AST", "@AST."+name, "object", "+"+name}
+    #     results = [classes]
+    #     for fieldname, child in ast.iter_fields(node):
+    #         results.append(({"field", "+" + fieldname}, self.visit(child)))
+    #     return results
 
-#     def generic_visit(self, node):
-#         # if isinstance(node, (int, str, ast.Load, ast.Store)):
-#         #     return []
-#         if not isinstance(node, ast.AST):
-#             return self.recurse(node)
-#         name = type(node).__name__
-#         results = [{"@list", "sequence"},
-#                    name,
-#                    self.recurse(getattr(node, 'lineno', None)),
-#                    #self.recurse(getattr(node, 'col_offset', None))
-#                    ]
-#         for fieldname, child in ast.iter_fields(node):
-#             results.append(self.visit(child))
-#         return results
+    def generic_visit(self, node):
+        # if isinstance(node, (int, str, ast.Load, ast.Store)):
+        #     return []
+        if not isinstance(node, ast.AST):
+            return self.recurse(node)
+        name = type(node).__name__
+        results = [{"@list", "sequence"},
+                   name,
+                   self.recurse(getattr(node, 'lineno', None)),
+                   #self.recurse(getattr(node, 'col_offset', None))
+                   ]
+        for fieldname, child in ast.iter_fields(node):
+            results.append(self.visit(child))
+        return results
 
-# def describe_ast_node(node, recurse):
-#     return ASTDescriber(recurse).visit(node)
+def describe_ast_node(node, recurse):
+    return ASTDescriber(recurse).visit(node)
 
 
-# def setup():
-#     types_registry[ast.AST] = describe_ast_node
+def setup():
+    types_registry[ast.AST] = describe_ast_node
 
-# setup()
+setup()

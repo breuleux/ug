@@ -1,10 +1,27 @@
 
 import operator
 from functools import reduce
+from types import FunctionType
 
-from ..parsing import Void
+from ..parsing import Void, SyntaxError
+from ..parsing.ug.ast import transfer
 from ..lib import (hashstruct, anonstruct, attrdict,
-                   hybrid, index, hastag, index)
+                   hybrid, index, hastag, index, tag, ugstr)
+from ..tools import exc
+
+class UGTypeError(exc.RichException, TypeError):
+    pass
+
+class DeconstructError(UGTypeError):
+    pass
+
+class GuardError(UGTypeError):
+    pass
+
+class MatchError(UGTypeError):
+    pass
+
+
 NoneType = type(None)
 
 hs = hashstruct
@@ -81,9 +98,6 @@ def _convert_formula(f):
         keys = []
 
         dstar = False
-        # saw_assoc = False
-        # over = False
-        # defaults = []
 
         acceptable = (NoneType, str, tuple, hs.deconstruct, hs.check,
                       hs.star, hs.assoc, hs.dstar, hs.default,
@@ -101,7 +115,15 @@ def _convert_formula(f):
                 entry = hs.default_assoc(entry[0][0], entry[0][1], entry[1])
 
             if not isinstance(entry, acceptable):
-                raise Exception("Violates order:", entry)
+                raise SyntaxError['lhs/order'](
+                    message = ("Clauses in []s in a left hand side must "
+                               "be laid in this order: positional variables, "
+                               "positional variables with defaults, "
+                               "*variable (at most one), positional variables, "
+                               "keyword variables with or without defaults, "
+                               "**variable (at most one). The highlighted "
+                               "element is the first to violate the order."),
+                    node = entry)
 
             if isinstance(entry, hs.star):
                 ban(hs.star, hs.default)
@@ -127,71 +149,63 @@ def _convert_formula(f):
                 ban(str, tuple, hs.deconstruct, hs.check)
                 ranges[1] += 1
                 new.append((subf, d))
-            # elif saw_assoc:
-            #     raise Exception("=> must be at the end")
             else:
                 ranges[i] += 1
                 new.append((entry,))
-            
-
-            # nonlocal over, dstar, saw_assoc
-            # if over:
-            #     raise Exception("** must be last")
-            # if isinstance(entry, hs.star):
-            #     if saw_assoc:
-            #         raise Exception("=> must be at the end")
-            #     ranges.append(0)
-            #     new.append(entry[0])
-            # elif isinstance(entry, hs.assoc):
-            #     saw_assoc = True
-            #     keys.append(entry[0])
-            #     new.append(entry[1])
-            # elif isinstance(entry, hs.dstar):
-            #     dstar = True
-            #     over = True
-            #     new.append(entry[0])
-            # elif isinstance(entry, hs.default):
-            #     raise Exception("eee")
-            #     # subf, d = entry[:]
-            #     # defaults.append(d)
-            # elif saw_assoc:
-            #     raise Exception("=> must be at the end")
-            # else:
-            #     ranges[-1] += 1
-            #     new.append(entry)
 
         for entry in f:
             process_entry(entry)
 
-        # if len(ranges) > 2:
-        #     raise Exception("More than one *")
-
-        return (ranges[0],
-                ranges[1],
-                ranges[2],
-                tuple(keys),
-                bool(dstar)) + tuple((_convert_formula(x),) + tuple(d)
-                                     for x, *d in new)
+        return transfer(ugtuple(
+            (ranges[0],
+             ranges[1],
+             ranges[2],
+             tuple(keys),
+             bool(dstar)) + tuple((_convert_formula(x),) + tuple(d)
+                                  for x, *d in new)), f)
 
     elif isinstance(f, hs.deconstruct):
-        return hs.deconstruct(f[0], *_convert_formula(f[1:]))
+        rval = hs.deconstruct(f[0], *_convert_formula(f[1:]))
+        transfer(rval, f)
+        return rval
 
     elif isinstance(f, hs.check):
-        return hs.check(f[0], _convert_formula(f[1]))
+        rval = hs.check(f[0], _convert_formula(f[1]))
+        transfer(rval, f)
+        return rval
 
     elif isinstance(f, str):
         return f
 
+    elif f is None:
+        return f
 
-def _deconstruct(dctor, value):
+    elif isinstance(f, (hs.star, hs.dstar, hs.default)):
+        raise SyntaxError['lhs/bad_deconstructor'](
+            message = "This expression is only valid inside []s.",
+            node = f)
+
+    else:
+        raise SyntaxError['lhs/bad_deconstructor'](
+            message = "Invalid deconstructor: " + str(f),
+            node = f)
+
+
+def _deconstruct(f, dctor, value):
     if dctor is None:
         if isinstance(value, (tuple, list, dict, hybrid)):
             return value
         else:
-            raise Exception("Not deconstructible")
-    else:
+            raise DeconstructError['not_deconstructible'](
+                value = value,
+                pattern = f)
+    elif hasattr(dctor, '__deconstruct__'):
         rval = dctor.__deconstruct__(value)
         return rval
+    else:
+        raise DeconstructError['not_deconstructor'](
+            deconstructor = dctor,
+            pattern = f)
 
 def _deconstruct2(value, f):
 
@@ -199,6 +213,7 @@ def _deconstruct2(value, f):
         return (value,)
 
     elif isinstance(f, tuple):
+
         if isinstance(value, (tuple, list)):
             t, d = value, {}
         elif isinstance(value, dict):
@@ -206,15 +221,29 @@ def _deconstruct2(value, f):
         elif isinstance(value, hybrid):
             t, d = value.tuple, dict(value.dict)
         else:
-            raise TypeError("Not deconstructible")
+            raise DeconstructError['not_deconstructible'](
+                value = value,
+                pattern = f)
 
         nfirst, ndefaults, nlast, keys, dstar, *subf = f
+
+        low = nfirst + (nlast or 0)
+        if nlast is None:
+            high = low + ndefaults
+        else:
+            high = None
+
         lt = len(t)
+
+        if lt < low or high and lt > high:
+            raise DeconstructError['wrong_length'](
+                expected = (low, high),
+                received = lt,
+                pattern = f)
+
         results = []
 
         for i in range(nfirst):
-            if i >= lt:
-                raise TypeError("Out of bounds")
             results.append(_deconstruct2(t[i], subf[i][0]))
 
         for i in range(nfirst, nfirst + ndefaults):
@@ -222,16 +251,12 @@ def _deconstruct2(value, f):
             results.append(_deconstruct2(t[i] if i < lt else default, p))
 
         if nlast is not None:
-            remainder = lt - nfirst - ndefaults
-            if nlast and remainder < nlast:
-                raise TypeError("not enough")
             results.append(_deconstruct2(t[nfirst+ndefaults:len(t)-nlast],
                                         subf[nfirst+ndefaults][0]))
             results += [_deconstruct2(t[lt-nlast+i],
-                                      [x[0] for x in subf[nfirst+ndefaults+i+1]])
+                                      subf[nfirst+ndefaults+i+1][0])
                         for i in range(nlast)]
-        elif lt > nfirst + ndefaults:
-            raise TypeError("Expected exactly", nfirst)
+
 
         for key, keyf in zip(keys, subf[nfirst + (nlast+1 if nlast is not None else 0):]):
             try:
@@ -240,18 +265,22 @@ def _deconstruct2(value, f):
                 if len(keyf) == 2:
                     r = keyf[1]
                 else:
-                    raise TypeError("Could not find key", key)
+                    raise DeconstructError['missing_key'](
+                        key = key,
+                        pattern = f)
             results.append(_deconstruct2(r, keyf[0]))
         if dstar:
             results.append(_deconstruct2(d, subf[-1][0]))
         elif d:
-            raise TypeError("Extra keys", d)
+            raise DeconstructError['extra_keys'](
+                keys = d,
+                pattern = f)
 
         return reduce(tuple.__add__, results, ())
 
     elif isinstance(f, hs.check):
         chk, var = f[:]
-        result = check(chk, value)
+        result = check(chk, value, pattern = f)
         if var is None:
             return ()
         else:
@@ -259,7 +288,7 @@ def _deconstruct2(value, f):
 
     elif isinstance(f, hs.deconstruct):
         dctor, *spec = f[:]
-        return _deconstruct2(_deconstruct(dctor, value), tuple(spec))
+        return _deconstruct2(_deconstruct(f, dctor, value), tuple(spec))
 
     elif f is None:
         return ()
@@ -286,7 +315,7 @@ class raiser:
 
 
 @library_function
-def check(checker, value):
+def check(checker, value, pattern = None):
 
     try:
         checker = getattr(checker, '__check__')
@@ -299,9 +328,15 @@ def check(checker, value):
         if isinstance(value, checker):
             return value
         else:
-            raise TypeError("Expected %s but got %s" % (checker, type(value)))
+            raise UGTypeError['bad_type'](
+                expected = checker,
+                received = type(value),
+                pattern = pattern)
     else:
-        raise TypeError("Cannot check with", checker)
+        raise UGTypeError['bad_check'](
+            checker = checker,
+            value = value,
+            pattern = pattern)
 
 
 @library_function
@@ -311,7 +346,9 @@ class check_equal:
     def __check__(self, other):
         if self.value == other:
             return other
-        raise TypeError("Expected == %s but got %s" % (self.value, other))
+        raise UGTypeError['bad_value'](
+            expected = self.value,
+            received = other)
 
 
 @library_function
@@ -483,7 +520,7 @@ def make_object(*specifications):
                     errors.append(e)
                     continue
                 if guard and not guard(*args):
-                    guards.append(GuardError("Guard failed."))
+                    guards.append(GuardError(guard = guard))
                     continue
                 return hs.ok(f(*args))
             if errors:
@@ -499,10 +536,10 @@ def make_object(*specifications):
                     errors.append(e)
                     continue
                 if guard and not guard(*args):
-                    errors.append(GuardError("Guard failed."))
+                    errors.append(GuardError(guard = guard))
                     continue
                 return f(*args)
-            raise TypeError("Nothing matched", errors)
+            raise MatchError(errors = errors)
 
     return R()
 
@@ -556,11 +593,27 @@ def trycatch(thunk, handler, else_, finally_):
 library_function("nonzero")(bool)
 
 
-class GuardError(TypeError):
-    pass
-
 @library_function
 def apply_guard(guard):
     if not guard():
-        raise GuardError("Guard failed")
+        raise GuardError(guard = guard)
+
+
+class ugtuple(tuple):
+    def __init__(self, t):
+        super().__init__(t)
+        self.__tags__ = {}
+
+@library_function
+def maytag(obj, name, value):
+    if isinstance(obj, tuple):
+        obj = ugtuple(obj)
+    elif isinstance(obj, str):
+        obj = ugstr(obj)
+    elif isinstance(obj, FunctionType):
+        obj.__tags__ = {}
+    try:
+        return tag(obj, name, value)
+    except AttributeError:
+        return obj
 

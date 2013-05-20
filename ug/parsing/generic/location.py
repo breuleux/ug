@@ -17,12 +17,13 @@ class Source(object):
                 self.lines.append(i + 1)
 
     def linecol(self, pos):
-        if 0 <= pos < len(self.text):
+        if 0 <= pos <= len(self.text):
             line = bisect_right(self.lines, pos) - 1
             return (line + 1, pos - self.lines[line] + 1)
         else:
             raise exc.IndexError['sourcepos'](dict(pos = pos,
-                                                   source = self))
+                                                   source = self,
+                                                   length = len(self.text)))
 
     def __descr__(self, recurse):
         if self.url is None:
@@ -139,8 +140,10 @@ class Locations:
     def __descr__(self, recurse):
         locations = [(l.start, l.end, {self.get_hl(i)})
                      for i, l in enumerate(self.locations)]
-        return [{"location"},
-                recurse(self.locations[0].source)] + locations
+        if self.locations:
+            return [{"location"},
+                    recurse(self.locations[0].source)] + locations
+        return []
         
 
 

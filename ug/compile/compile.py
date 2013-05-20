@@ -149,8 +149,10 @@ def accumulate_sequence(compiler, entries, type, expand_eqassoc = True):
                          hs2.assign(variable, entry)]
 
             if p.guard is not None:
-                instructions += [build_scall(lib.apply_guard,
-                                             hs2["lambda"]([], p.guard))]
+                lbda = hs2["lambda"]([], p.guard)
+                tag(lbda, "tag_location", getloc(lbda))
+                g = build_scall(lib.apply_guard, lbda)
+                instructions += [g]
 
             instructions.append(hs.value(None))
 
@@ -448,6 +450,14 @@ class ParseLHS(ASTVisitor):
         self.deconstructor_arg = dctor
         self.deconstructor = build_scall(lib.Deconstructor, dctor)
 
+    def visit(self, node, d):
+        result = super().visit(node, d = d)
+        try:
+            tag(result, "tag_location", getloc(node))
+        except:
+            pass
+        return result
+
     def register_variable(self, node, d):
         if node == "_":
             return hs.value(None), d
@@ -472,7 +482,10 @@ class ParseLHS(ASTVisitor):
         return build_fcall(self.hash("deconstruct"), expr, *variables)
 
     def visit_generic(self, node, d = None):
-        raise Exception("invalid lhs", node)
+        raise SyntaxError['lhs/invalid'](
+            message = ("This expression is invalid on the left hand side of "
+                       "an assignment or declaration"),
+            node = node)
 
     def visit_ugstr(self, node, d):
         var, d = self.register_variable(node, d)
@@ -487,7 +500,9 @@ class ParseLHS(ASTVisitor):
     def visit_value(self, node, value, d):
         self.simple = False
         if d is not None:
-            raise Exception("There cannot be a checker for", d)
+            raise SyntaxError['lhs/checker'](
+                message = "You cannot give a type or wrapper to a literal left hand side.",
+                nodes = [node, d])
         expr = build_scall(lib.check_equal, node)
         return self.make_check(expr, hs.value(None))
 
@@ -495,7 +510,9 @@ class ParseLHS(ASTVisitor):
         if len(args) == 1:
             return self.visit(args[0], d = d)
         if d is not None:
-            raise Exception("There is already a checker!", d)
+            raise SyntaxError['lhs/checker'](
+                message = "You cannot give a type or wrapper to a left hand side that already has one.",
+                nodes = [node, d])
         *dctor, var = args
         dctor = hs2.juxt(*dctor)
         return self.visit(var, d = dctor)
@@ -514,14 +531,20 @@ class ParseLHS(ASTVisitor):
 
         if op == "=":
             if d is not None:
-                raise Exception("Cannot give a type to whole = expression")
+                raise SyntaxError['lhs/checker'](
+                    message = "You cannot give a type or wrapper to a whole default expression (put it on the left hand side of = instead).",
+                    nodes = [node, d])
             return build_fcall(self.hash("default"), self.visit(x, d = d), y)
 
         elif op == "when":
             if not was_simple:
-                raise Exception("when must be top level")
+                raise SyntaxError['lhs/when'](
+                    message = "when clause must be top level, not nested in other expressions.",
+                    node = node)
             if not self.allow_guard:
-                raise Exception("when is not allowed here")
+                raise SyntaxError['lhs/when'](
+                    message = "when clause is not allowed here.",
+                    node = node)
             self.guard = y
             if x == hs.value(Void):
                 return hs.value(None)
@@ -530,35 +553,48 @@ class ParseLHS(ASTVisitor):
 
         elif op == "*" and x == hs.value(Void):
             if not isinstance(y, ugstr):
-                raise Exception("Only plain var right of *")
+                raise SyntaxError['lhs/star'](
+                    message = "* must qualify a variable -- not an expression.",
+                    node = y)
             return build_fcall(self.hash("star"), self.visit(y, d = d))
 
         elif op == "**" and x == hs.value(Void):
             if not isinstance(y, ugstr):
-                raise Exception("Only plain var right of **")
+                raise SyntaxError['lhs/dstar'](
+                    message = "** must qualify a variable -- not an expression.",
+                    node = y)
             return build_fcall(self.hash("dstar"), self.visit(y, d = None))
 
         elif op == "=>":
             if d is not None:
-                raise Exception("Cannot give a type to whole => expression")
+                raise SyntaxError['lhs/checker'](
+                    message = "You cannot give a type or wrapper to a whole => expression (put it on the right hand side of => instead).",
+                    nodes = [node, d])
             if x == hs.value(Void):
                 if isinstance(y, hs.juxt):
                     x = y[-1]
                 else:
                     x = y
             if not isinstance(x, (ugstr, hs.value)):
-                raise Exception("Only var or value left of =>")
+                raise SyntaxError['lhs/checker'](
+                    message = "The left hand side of => must be a single variable and not an expression",
+                    node = x)
             return build_fcall(self.hash("assoc"),
                                x if isinstance(x, hs.value) else hs2.value(x),
                                self.visit(y, d = None))
 
         elif op == "." and x == hs.value(Void):
             if not isinstance(y, ugstr):
-                raise Exception("Only plain var right of .")
+                raise SyntaxError['lhs/dot'](
+                    message = "For the time being, it must be a plain variable on the right hand side of the dot and not an expression.",
+                    node = y)
             return self.visit(hs.value(y), d = d)
 
         else:
-            raise Exception("invalid lhs", node)
+            raise SyntaxError['lhs/invalid'](
+                message = ("This operator expression is invalid on the left hand side of "
+                           "an assignment or declaration."),
+                node = node)
 
 
 
@@ -582,7 +618,9 @@ class ASTRename(ASTVisitor):
         # raise Exception("Could not resolve variable", v)
 
     def visit_ugstr(self, node):
-        return self.resolve(node)[0]
+        r = self.resolve(node)[0]
+        r = transfer(ugstr(r), node)
+        return r
 
     def visit_UniqueVar(self, node):
         return node

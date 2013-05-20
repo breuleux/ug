@@ -142,6 +142,10 @@ def wrong_use(mac, node):
 def dot(self, node, args, arg):
     return hs.value(arg)
 
+@prefix_macro(".:")
+def dot(self, node, args, arg):
+    return tag(arg, "tag_location", getloc(arg))
+
 @prefix_macro("#")
 def hash(self, node, args, arg):
     if isinstance(arg, ugstr):
@@ -462,7 +466,10 @@ def mac_if(self, node, args):
         return hs["if"](*args)
 
     else:
-        raise Exception("bad if")
+        raise SyntaxError['bad_if'](
+            message = ("if must be called with the notation 'if cond: body' "
+                       "or 'if[cond, then, else]'"),
+            node = node)
 
 
 @macro("match")

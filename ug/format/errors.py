@@ -2,6 +2,7 @@
 from .. import SyntaxError, Locations
 from ..parsing.ug.ast import getloc as getloc_
 from ..parsing.generic.parse import Operator
+from ..compile.lib import DeconstructError, GuardError, UGTypeError, MatchError
 from descr import descr
 
 error_repository = {}
@@ -64,17 +65,19 @@ def serr(s = ""):
     return mkmsg().hlE("Syntax Error:").t(s)
 
 
-class ErrorPrinter:
-    def __init__(self, message, *locations):
+class ErrorPrinter(Exception):
+    def __init__(self, message, *locations, exc = None):
         self.message = message
         self.locations = locations and Locations([l for l in locations if l])
-    def __descr__(self, recurse):
+        if exc:
+            self.__traceback__ = exc.__traceback__
+    def __exc_descr__(self, recurse):
         if self.locations:
-            return ({"assoc"},
+            return ({"assoc", "@ErrorPrinter"},
                     self.message,
                     [recurse(self.locations)])
         else:
-            return ({"assoc"},
+            return ({"assoc", "@ErrorPrinter"},
                     self.message)
 
 
@@ -238,3 +241,105 @@ def syntax_error(exc):
     return ErrorPrinter(serr().t(m), *loc)
 
 
+
+def derr(s = ""):
+    return mkmsg().hlE("Deconstruction Error:").t(s)
+
+
+@associate_to(DeconstructError['not_deconstructor'])
+def dec_missing_key(exc):
+    m = derr().hl1(repr(exc.deconstructor))
+    m.t("is not a deconstructor.")
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+@associate_to(DeconstructError['not_deconstructible'])
+def dec_missing_key(exc):
+    m = derr("Could not deconstruct").hl2(repr(exc.value))
+    m.t("into a tuple, dict or hybrid.")
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+@associate_to(DeconstructError['wrong_length'])
+def dec_wrong_length(exc):
+    m = derr()
+    e = exc.expected
+
+    if isinstance(e, int):
+        low, high = e, e
+    else:
+        low, high = e
+
+    if low is None:
+        m.t("At most").hl1(str(high))
+    elif high is None:
+        m.t("At least").hl1(str(low))
+    elif low == high:
+        m.t("Exactly").hl1(str(low))
+    else:
+        m.t("From").hl1(str(low)).t("to").hl1(str(high))
+
+    r = exc.received
+    m.t("positional argument").t(" is" if (high or low) == 1 else "s are", False)
+    m.t("required, but").hl2(str(r)).t("was" if r == 1 else "were").t("found.")
+
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+
+@associate_to(DeconstructError['missing_key'])
+def dec_missing_key(exc):
+    m = derr("The key")
+    m.hl1(exc.key).t("was not found.")
+
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+
+@associate_to(DeconstructError['extra_keys'])
+def dec_extra_keys(exc):
+    m = derr("Unexpected key/value pairs were found:")
+    m.t(str(exc.keys))
+
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+
+@associate_to(GuardError)
+def guard_error(exc):
+    m = mkmsg().hlE("Guard Error:").t("Guard failed.")
+    return ErrorPrinter(m, getloc(exc.guard), exc = exc)
+
+
+
+
+def terr(s = ""):
+    return mkmsg().hlE("Type Error:").t(s)
+
+@associate_to(UGTypeError['bad_check'])
+def bad_check(exc):
+    m = terr().hl1(repr(exc.checker))
+    m.t("is not a type or wrapper.")
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+@associate_to(UGTypeError['bad_type'])
+def type_error(exc):
+    m = terr("Expected").hl1(repr(exc.expected))
+    m.t("but received").hl1(repr(exc.received))
+    return ErrorPrinter(m, getloc(exc.pattern), exc = exc)
+
+@associate_to(UGTypeError['bad_value'])
+def type_error(exc):
+    m = terr("Expected the value").hl1(repr(exc.expected))
+    m.t("but received the value").hl1(repr(exc.received))
+    return ErrorPrinter(m, exc = exc)
+
+
+
+@associate_to(MatchError)
+def type_error(exc):
+    m = mkmsg().hlE("Match Error:").t("Nothing matched.")
+    printers = []
+    for error in exc.errors:
+        error.__traceback__ = None
+        error.__cause__ = None
+        error.__context__ = None
+        printers.append(process_error(error) or error)
+
+    return ErrorPrinter([m] + list(map(descr, printers)),
+                        exc = exc)

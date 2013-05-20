@@ -151,6 +151,7 @@ standard_matchers = [
     subtok_rule(",", ",", ["infix", 0]),
     "nl_insert_point",
     subtok_rule(".", "\\.\\.", ["infix", 0]),
+    subtok_rule(".", "\\.:", ["infix", 0]),
     subtok_rule(":", rx_without(":", chr_op), ["infix", 0]),
     subtok_rule("=", rx_without("=", chr_op), ["infix", 0]),
     subtok_rule("-", rx_without("->", chr_op), ["infix", 0]),

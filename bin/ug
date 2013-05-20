@@ -16,80 +16,11 @@ Options:
 from docopt import docopt
 from descr import boxy_terminus, HTMLRuleBuilder as RB
 
-# pr = boxy_terminus()#always_setup = True)
-
-# from ug.format.format import std_terminus
-
-# css = {
-#     ".{@struct.#value}>.label": {"display": "none"},
-#     ".{@struct.#juxt}>.label": {"display": "none"},
-#     ".{@struct.#oper}>.label": {"display": "none"},
-#     ".{@struct.#square}>.label": {"display": "none"},
-#     ".{@struct.#curly}>.label": {"display": "none"},
-#     ".{@struct.#begin}>.label": {"display": "none"},
-
-#     ".{@struct.#oper}>.sequence>:first-child": {"color": "white"},
-
-#     ".{@struct} .sequence": {},
-#     ".{@struct.#value}>.sequence": {
-#         "border": "1px solid #050",
-#         "padding": "0px"
-#         },
-#     ".{@struct.#value} .{@str}": {
-#         "color": "#8f8"
-#         },
-#     ".{@struct.#value} .{@VOID}": {
-#         "color": "#888"
-#         },
-#     ".{@struct.#juxt}>.sequence": {
-#         "border-bottom": "2px solid #222"
-#         },
-#     ".{@struct.#oper}>.sequence": {
-#         "border-bottom": "2px solid #222"
-#         },
-#     ".{@struct.#square}>.sequence": {
-#         "border-bottom": "3px solid #f88"
-#         },
-#     ".{@struct.#curly}>.sequence": {
-#         "border-bottom": "3px solid #88f"
-#         },
-#     ".{@struct.#begin}>.sequence": {
-#         "border-bottom": "3px dotted #888"
-#         },
-
-#     # ==============
-
-#     ".{@struct.#tuple}>.label": {"display": "none"},
-#     ".{@struct.#special}>.label": {"display": "none"},
-#     ".{@struct.#send}>.label": {"display": "none"},
-
-#     ".{@struct.#tuple}>.sequence": {
-#         "border-bottom": "3px solid #8f8"
-#         },
-#     ".{@struct.#special}>.sequence": {
-#         "border": "1px solid #005",
-#         "padding": "0px"
-#         },
-#     ".{@struct.#special} .{@str}": {
-#         "color": "#88f"
-#         },
-
-#     ".{@struct.#send}>.sequence": {
-#         "border-bottom": "2px solid #222"
-#         },
-    
-
-#     }
-
-# manips = [
-#     ("@struct", {"join": ""})
-#     ]
-
-
 from ug import SyntaxError
 from ug.format import errors
 from ug.lib import struct, hastag, gettag
 from descr import descr
+
 
 def descr2(x, recurse = None):
     v = descr(x, descr2)
@@ -108,8 +39,8 @@ class prerror:
     def __exit__(self, type, value, traceback):
         if type is None:
             return True
-        elif issubclass(type, SyntaxError):
-            rules = RB().pclasses(".location", "C=3")
+        elif True: # issubclass(type, SyntaxError):
+            rules = RB().pclasses(".{@ErrorPrinter} .location", "C=3")
             rules.rearrange(".hl1, .hl2, .hl3, .hlE",
                             lambda classes, children: ["_"]*len(children[0]) if not children[0].strip() else children)
 

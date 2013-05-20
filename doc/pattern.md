@@ -97,7 +97,7 @@ match fails.
 A guard is declared with the `when` operator.
 
     x when x.startswith["hello"] = "hello everyone" ;; success
-    [x, y, z] when (x > 0) = [-7, -8, -9] ;; failure
+    [x, y, z] when (x > 0) = [-7, -8, -9] ;; GuardError
 
 
 **Matching a list**
@@ -155,26 +155,26 @@ replacement.
 For instance, let's say you want to set x to the absolute value of
 y. You could do this:
 
-   x = abs[y]
+    x = abs[y]
 
 Or you could do this:
 
-   @abs x = y
+    @abs x = y
 
 The latter way is quite useful in at least two situations. First, it
 is useful if y is buried in some data structure. Compare:
 
-   #point[x, y] = #point[1, -2]
-   x := abs[x]
-   y := abs[y]
+    #point[x, y] = #point[1, -2]
+    x := abs[x]
+    y := abs[y]
 
-   #point[@abs x, @abs y] = #point[1, -2]
+    #point[@abs x, @abs y] = #point[1, -2]
 
 Second, it is useful to wrap functions. Compare:
 
-   f = classmethod[[cls] -> ...]
+    f = classmethod[[cls] -> ...]
 
-   @classmethod f = [cls] -> ...
+    @classmethod f = [cls] -> ...
 
 
 **Deconstructors**

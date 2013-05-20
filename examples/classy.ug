@@ -1,0 +1,26 @@
+
+
+Animal = class:
+    __init__ = [self, name] ->
+        self.name := name
+
+Cat = class[Animal]:
+    cry = [self] ->
+        print[self.name, "meows"]
+
+Dog = class[Animal]:
+    cry = [self] ->
+        print[self.name, "barks"]
+
+Cow = class[Animal]:
+    cry = [self] ->
+        print[self.name, "moos"]
+
+animals = [Cat["Mittens"], Dog["Charlie"], Cow["Marge"]]
+
+animals each
+    Cat x -> print[x.name, "is a cat"]
+    Dog x -> print[x.name, "is a dog"]
+    Cow x -> print[x.name, "is a cow"]
+
+animals each x -> x.cry[]

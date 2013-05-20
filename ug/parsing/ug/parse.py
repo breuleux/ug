@@ -83,9 +83,9 @@ def build_op_matrix():
     op_matrix.order("cmp", "or", "assoc")
 
     # lambda & colon
-    op_matrix.order("wjuxt", "lbda", "bang")
+    op_matrix.order("wjuxt", "lbda", "decl")
     # op_matrix.order("lbda", "wjuxt")
-    op_matrix.order("wjuxt", "colon", "bang")
+    op_matrix.order("wjuxt", "colon", "decl")
 
     # infer
     op_matrix.infer()

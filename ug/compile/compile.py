@@ -186,25 +186,29 @@ def parse_sequence(compiler, seq):
             lhs, rhs = arg[:]
 
             if isinstance(lhs, ugstr):
-                dparts[-1].append((hs2.value(lhs),
-                                   compiler.xvisit(rhs)))
+                new_rhs = compiler.xvisit(rhs)
+                tag(new_rhs, "name", lhs)
+                dparts[-1].append((hs2.value(lhs), new_rhs))
 
             else:
                 p = ParseLHS(lhs, allow_guard = False)
                 variables = p.variables
                 deconstructor = p.deconstructor
                 rv = transfer(UniqueVar("α"), deconstructor)
+                instructions = p.instructions
+                instructions.append(hs2.declare(rv, None))
                 vnames = []
                 for v, h in variables:
-                    if h is not None:
-                        raise Exception("cannot type variable here", h)
+                    # if h is not None:
+                    #     raise Exception("cannot type variable here", h)
                     vnames.append(hs.value(v))
-                expr = hs2.begin(hs2.declare(rv, None),
-                                 hs2.assign(rv, build_fcall(deconstructor, rhs)),
+                
+                instructions += [hs2.assign(rv, build_fcall(deconstructor, rhs)),
                                  build_scall(dict, 
                                              build_scall(zip,
                                                          hs2.tuple(*vnames),
-                                                         rv)))
+                                                         rv))]
+                expr = hs2.begin(*instructions)
                 dparts.append(compiler.xvisit(expr))
                 dparts.append([])
 
@@ -373,16 +377,24 @@ class ExprCompiler(Compiler):
         return revisit(hs.begin(*args))
 
     def visit_star(self, node, arg):
-        raise Exception("Bad * context")
+        raise SyntaxError['bad_context'](
+            operator = "*",
+            node = node)
 
     def visit_dstar(self, node, arg):
-        raise Exception("Bad ** context")
+        raise SyntaxError['bad_context'](
+            operator = "**",
+            node = node)
 
     def visit_assoc(self, node, k, v):
-        raise Exception("Bad => context")
+        raise SyntaxError['bad_context'](
+            operator = "=>",
+            node = node)
 
     def visit_eqassoc(self, node, lhs, rhs):
-        raise Exception("Bad = context")
+        raise SyntaxError['bad_context'](
+            operator = "=",
+            node = node)
 
     def visit_macro(self, node, value):
         return node

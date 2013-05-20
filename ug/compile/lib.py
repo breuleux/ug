@@ -532,10 +532,15 @@ class ugobj:
         return self.__recv__(hs.assign(index(item), value))
 
 
+class uglitobj(ugobj):
+    pass
+
 @library_function
 def make_object(*specifications):
 
-    class R(ugobj):
+    class R(uglitobj):
+
+        __ugspecs__ = specifications
 
         def __recv_safeguard__(self, arg):
             _SHOW_FRAME = False
@@ -651,4 +656,33 @@ def maytag(obj, name, value):
         return tag(obj, name, value)
     except AttributeError:
         return obj
+
+
+@library_function
+def make_class(bases, elements):
+    d = {}
+    for k, v in elements.items():
+        if isinstance(v, uglitobj):
+            specs = v.__ugspecs__
+            if len(specs) != 1:
+                raise Exception("class method can only have a single clause")
+            deconstructor, guard, f = specs[0]
+            formula = deconstructor.formula
+            if (not guard
+                and isinstance(formula, tuple)
+                and not [x for x in formula if not isinstance(x, str)]):
+                f.__name__ = k
+                d[k] = f
+            else:
+                raise Exception("class method must be simple")
+        else:
+            d[k] = v
+    rval = type("__", tuple(bases), d)
+    rval.__module__ = "abc"
+    return rval
+
+@library_function
+def setattribute(x, attr, value):
+    setattr(x, attr, value)
+    return x
 

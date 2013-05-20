@@ -102,12 +102,25 @@ class UGToPy(ASTVisitor):
                                hs.tuple(copy,
                                         hs.value("location"),
                                         hs.value(thetag)))
+
         if hastag(node, 'name'):
             name2 = gettag(node, 'name')
-            if name is not None:
-                name = name + ':' + name2
-            else:
-                name = name2
+            if name2 is not None:
+                if name is not None:
+                    name = name + ':' + name2
+                else:
+                    name = name2
+                tag(node, 'name', None)
+
+        if hastag(node, "set_name"):
+            if gettag(node, "set_name"):
+                copy = tag(transfer(type(node)(*node[:]), node),
+                           "set_name",
+                           False)
+                node = hs.send(hs.value(lib.setattribute),
+                               hs.tuple(copy,
+                                        hs.value("__name__"),
+                                        hs.value(name or "?")))
 
         result = super().visit(node, name = name)
         return result

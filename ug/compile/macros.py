@@ -369,9 +369,15 @@ def mac_lambda(self, node, args):
                 dv = UniqueVar("δ")
                 instructions.append(hs2.declare(dv, None))
                 instructions.append(hs2.assign(dv, p.deconstructor))
-                
+
+                if p.guard:
+                    lbda = hs2["lambda"](p.variables, p.guard)
+                    guard = tag(lbda, "tag_location", getloc(lbda))
+                else:
+                    guard = hs.value(None)
+
                 functions.append(hs2.tuple(dv,
-                                           (hs2["lambda"](p.variables, p.guard) if p.guard else hs.value(None)),
+                                           guard,
                                            hs2["lambda"](p.variables, #[v for v, t in p.variables],
                                                          body)))
             instructions.append(build_scall(lib.make_object, *functions))
@@ -476,6 +482,47 @@ def mac_if(self, node, args):
 def match(self, node, args):
     obj, patterns = args[:]
     return hs2.send(patterns, obj)
+
+
+@macro("class")
+def class_(self, node, args):
+
+    if isinstance(args, hs.colonargs):
+        sup, body = args[:]
+
+        if isinstance(sup, hs.juxt):
+            if len(sup[:]) != 1:
+                raise SyntaxError['bad_class'](
+                    message = ("class must be called with the notation 'class [super...]: body'"),
+                    node = node)
+            sup = sup[0]
+
+        elif sup == hs.value(Void):
+            sup = hs.square()
+
+        if not isinstance(sup, (hs.tuple, hs.square)):
+            raise SyntaxError['bad_class'](
+                message = ("class must be called with the notation 'class [super...]: body'"),
+                node = node)
+
+        if isinstance(body, hs.begin):
+            body = body[:]
+        else:
+            body = [body]
+
+        rval = build_scall(lib.make_class,
+                           sup,
+                           hs.square(*body))
+        tag(rval, "set_name", True)
+        return rval
+
+
+    else:
+        raise SyntaxError['bad_class'](
+            message = ("class must be called with the notation 'class [super...]: body'"),
+            node = node)
+    
+
 
 
 

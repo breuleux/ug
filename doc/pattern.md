@@ -181,37 +181,21 @@ Second, it is useful to wrap functions. Compare:
 
 When a type is put before an identifier, it checks the value's type
 before assigning it to the variable. If a type is put before a list or
-dict pattern, however, the behavior is different.
+dict pattern, however, the behavior is different. The type will
+*deconstruct* the object into a list or a dictionary, which will be
+then matched normally.
+
+If you wish to define your own type and have them decompose values for
+further matching, simply note that:
 
     x [y, z] = ...
 
-Is essentially equivalent to
+Is equivalent to
 
     [y, z] = x.__deconstruct__[...]
 
-That is to say, the type needs to implement a `__deconstruct__` method
-which returns a list, dict or hybrid, which will be matched normally.
-
-Likewise, what we had in an earlier example:
-
-    #line[#point[int x1, int y1], #point[int x2, int y2]] = ...
-
-Is equivalent to
-
-    [#point[int x1, int y1], #point[int x2, int y2]] = #line.__deconstruct__[...]
-
-And so on, recursively. So you can figure that this does not work:
-
-    [x, y] = #point[1, 2] ;; TypeError
-
-This does, though, because `struct` knows how to deconstruct instances
-of `#point`:
-
-    struct [x, y] = #point[1, 2]
-
-You can of course define your own deconstructors. It only needs a
-`__deconstruct__` method that takes one argument and returns a list,
-dict or hybrid, and then you can use it like any other.
+Threfore, you only need to implement a `__deconstruct__` class method
+that takes one argument and returns a list, dict or hybrid.
 
 
 
@@ -229,13 +213,13 @@ pattern matching engine can be used.
     do_stuff_with[x, y]
 
 
-*Declaring functions*
+**Declaring functions**
 
     add = [x, y] -> x + y
     print[add[1, 2]]
 
 
-*match statement*
+**match statement**
 
     match [1, 2, 3]:
         [] -> print["empty list"]
@@ -244,7 +228,7 @@ pattern matching engine can be used.
         [x, y, z] -> print["length is three"]
 
 
-*Looping*
+**Looping**
 
     (1 to 10) each i -> print[i]
 
@@ -254,7 +238,7 @@ pattern matching engine can be used.
     ;; ==> milk , eggs , bananas
 
 
-*Exception handling*
+**Exception handling**
 
     1 / 0 !!
         ZeroDivisionError e ->

@@ -150,7 +150,7 @@ standard_matchers = [
     subtok_rule(")]}", "\\)|\\]|\\}", ["suffix", 0], action = ["pop"]),
     subtok_rule(",", ",", ["infix", 0]),
     "nl_insert_point",
-    subtok_rule(".", "\\.\\.", ["infix", 0]),
+    subtok_rule(".", "\\.\\.+", ["?fix", 0]),
     subtok_rule(".", "\\.:", ["infix", 0]),
     subtok_rule(":", rx_without(":", chr_op), ["infix", 0]),
     subtok_rule("=", rx_without("=", chr_op), ["infix", 0]),

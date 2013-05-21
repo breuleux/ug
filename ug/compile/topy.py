@@ -143,13 +143,20 @@ class UGToPy(ASTVisitor):
             r = hs.Str(str(value))
         elif value in (None, True, False, Void):
             r = hs.Name(str(value), hs.Load())
-        elif value in lib.rev_ug_library:
-            r = hs.Name(lib.rev_ug_library[value], hs.Load())
         else:
-            v = transloc(UniqueVar("v"), node)
-            self.values[str(v)] = value
-            r = hs.Name(str(v), hs.Load())
-            return self.register(r, r, node)
+            try:
+                if value in lib.rev_ug_library:
+                    r = hs.Name(lib.rev_ug_library[value], hs.Load())
+                else:
+                    r = None
+            except TypeError:
+                r = None
+
+            if r is None:
+                v = transloc(UniqueVar("v"), node)
+                self.values[str(v)] = value
+                r = hs.Name(str(v), hs.Load())
+                return self.register(r, r, node)
         # else:
         #     raise Exception("unknown value", value)
         return self.register(r, r, node)
@@ -258,7 +265,7 @@ class UGToPy(ASTVisitor):
         self.register(fn, hs.Name(str(name), hs.Load()), node)
         return self.visit(hs2.declaring([name], name), name)
 
-    def visit_generic(self, node):
+    def visit_generic(self, node, name):
         raise Exception("Unknown node", node)
 
 

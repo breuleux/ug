@@ -6,6 +6,7 @@ from types import FunctionType
 from ..parsing import Void, SyntaxError
 from ..parsing.ug.ast import transfer
 from ..lib import (hashstruct, anonstruct, attrdict,
+                   struct,
                    hybrid, index, hastag, index, tag, ugstr)
 from ..tools import exc
 
@@ -660,6 +661,7 @@ def maytag(obj, name, value):
 
 @library_function
 def make_class(bases, elements):
+    _SHOW_FRAME = False
     d = {}
     for k, v in elements.items():
         if isinstance(v, uglitobj):
@@ -683,6 +685,23 @@ def make_class(bases, elements):
 
 @library_function
 def setattribute(x, attr, value):
+    _SHOW_FRAME = False
     setattr(x, attr, value)
     return x
+
+
+@library_function
+def imp(specifications):
+    results = []
+    for entry in specifications:
+        if isinstance(entry, str):
+            results.append(__import__(entry))
+        elif isinstance(entry, hs.import_from):
+            m = __import__(entry[0], fromlist = entry[1:])
+            results.append([getattr(m, x) for x in entry[1:]])
+
+    return results
+
+
+library_function(struct)
 

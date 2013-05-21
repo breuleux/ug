@@ -521,7 +521,110 @@ def class_(self, node, args):
         raise SyntaxError['bad_class'](
             message = ("class must be called with the notation 'class [super...]: body'"),
             node = node)
-    
+
+
+class ParseImport(ASTVisitor):
+
+    def visit_ugstr(self, node):
+        return (node, node)
+
+    def visit_juxt(self, node, *args):
+        s = ""
+        v = None
+        for arg in args:
+            a, _v = self.visit(arg)
+            s += a
+            if v is None:
+                v = _v
+        return (ugstr(s), ugstr(v))
+
+    def visit_begin(self, node, *args):
+        results = []
+        variables = []
+        for x in args:
+            x, var = self.visit(x)
+            if isinstance(x, list):
+                results += x
+                variables += var
+            else:
+                results.append(x)
+                variables.append(var)
+        return results, hs2.square(*variables)
+
+    def visit_oper(self, node, op, a, b):
+
+        if op and all(c == '.' for c in op):
+            a, av = self.visit(a)
+            b, bv = self.visit(b)
+            return (a + op + b, av)
+
+        if op == "=>":
+            left, lv = self.visit(a)
+            right, rv = self.visit(b)
+
+            if not isinstance(left, str):
+                raise SyntaxError(message = "left of => must be a module descriptor",
+                                  nodes = [node, left])
+
+            if not isinstance(right, str) or "." in right:
+                raise SyntaxError(message = "right of => must be a single identifier",
+                                  nodes = [node, right])
+
+            elements = left.split(".")
+            if len(elements) > 1:
+                return (hs.import_from(".".join(elements[:-1]), elements[-1]),
+                        hs2.square(rv))
+            else:
+                return (left, rv)
+
+        if op == "->":
+            left, lv = self.visit(a)
+            right, rv = self.visit(b)
+            if not isinstance(left, str):
+                raise SyntaxError(message = "left of -> must be a module descriptor",
+                                  nodes = [node, left])
+            if isinstance(right, (str, hs.import_from)):
+                right = [right]
+                rv = hs2.square(rv)
+
+            results = []
+            results_v = []
+            mine = []
+            mine_v = []
+            for entry, v in zip(right, rv[:]):
+                if isinstance(entry, hs.import_from):
+                    results.append(hs.import_from(left + "." + entry[0],
+                                                  *entry[1:]))
+                    results_v.append(v)
+                else:
+                    mine.append(entry)
+                    mine_v.append(v)
+
+            if mine:
+                results.append(hs.import_from(left, *mine))
+                results_v.append(hs2.square(*mine_v))
+
+            return (results, hs2.square(*results_v))
+
+    def visit_value(self, node, value):
+        if value is Void:
+            return ("", None)
+        else:
+            raise Exception
+
+
+
+@macro("import")
+def import_(self, node, args):
+    pi = ParseImport()
+    spec, variables = pi.visit(args)
+    # print(spec)
+    # print(variables)
+    # return hs.value(123)
+    return hs.eqassoc(variables,
+                      build_scall(lib.imp, hs.value(spec)))
+
+
 
 
 

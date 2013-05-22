@@ -309,6 +309,8 @@ class Compiler(ASTVisitor):
         stmts = hs2.begin(*arguments)
         if declarations:
             return hs2.declaring(tuple(declarations), stmts)
+        elif len(arguments) == 1:
+            return stmts[0]
         else:
             return stmts
 
@@ -437,10 +439,11 @@ class InSeqCompiler(Compiler):
         if var is None:
             return hs2.assign(None, self.xvisit(value))
         elif isinstance(var, list):
+            raise Exception
             return hs2.assign(list(map(self.xvisit, var)),
                               self.xvisit(value))
         else:
-            return hs2.assign(self.xvisit(var),
+            return hs2.assign(self.svisit(hs.begin(var)),
                               self.xvisit(value))
 
 
@@ -629,9 +632,18 @@ class ASTRename(ASTVisitor):
         return (v, None)
         # raise Exception("Could not resolve variable", v)
 
+    def visit_str(self, node):
+        r = self.resolve(node)[0]
+        if isinstance(r, str) and not isinstance(r, ugstr):
+            r = ugstr(r)
+        r = transfer(r, node)
+        return r
+
     def visit_ugstr(self, node):
         r = self.resolve(node)[0]
-        r = transfer(ugstr(r), node)
+        if isinstance(r, str) and not isinstance(r, ugstr):
+            r = ugstr(r)
+        r = transfer(r, node)
         return r
 
     def visit_UniqueVar(self, node):
@@ -639,6 +651,10 @@ class ASTRename(ASTVisitor):
 
     def visit_value(self, node, v):
         return node
+
+    def visit_macro(self, node, f):
+        raise SyntaxError(message = str(f),
+                          node = node)
 
     def visit_begin(self, node, *stmts):
         changed = True

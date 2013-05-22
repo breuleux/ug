@@ -1,6 +1,11 @@
+Title: Pattern matching
+Category: tutorial
+Tags: tutorial
+Slug: pattern-matching
+Author: Olivier Breuleux
+Summary: Pattern matching
+Status: hidden
 
-Pattern matching
-================
 
 As the name aptly indicates, "pattern matching" is the process of
 matching up a pattern with some value. The match can succeed, or it
@@ -13,6 +18,7 @@ Pattern matching is of tremendous help if you have complex data
 structures and you want to *extract* data from them. Consider the
 following, for a taste:
 
+    :::ug
     line = #line[#point[0, 0], #point[10, 10]]
     ;; Magic happens here:
     #line[#point[int x1, int y1], #point[int x2, int y2]] = line
@@ -34,6 +40,7 @@ either one or two arguments. If it gets one, it computes `1 /
 argument`, otherwise it computes `argument1 / argument2`. You can do
 this easily in UG:
 
+    :::ug
     div =
         [nonzero argument] ->
             1 / argument
@@ -63,6 +70,7 @@ What is a pattern?
 
 If the pattern is a plain identifier, it will match anything.
 
+    :::ug
     x = y
 
 Note: the identifier `_` is special, in the sense that it matches
@@ -74,6 +82,7 @@ for any parts of a pattern you don't care about.
 
 You can use integers, floats or strings as patterns.
 
+    :::ug
     0 = 1 ;; failure
     ["hello", name] = ["hello", "Peter"] ;; success
 
@@ -83,6 +92,7 @@ You can use integers, floats or strings as patterns.
 If the pattern is a type next to an identifier, it checks that the
 value to match has the right type.
 
+    :::ug
     int x = 1 ;; success!
     str x = 1 ;; TypeError
 
@@ -96,17 +106,20 @@ match fails.
 
 A guard is declared with the `when` operator.
 
+    :::ug
     x when x.startswith["hello"] = "hello everyone" ;; success
     [x, y, z] when (x > 0) = [-7, -8, -9] ;; GuardError
 
 
 **Matching a list**
 
+    :::ug
     [x, y] = [1, 2]
 
 If a `*variable` is found it is set to the remainder of the contents
 of the list. It will match lists of arbitrary lengths.
 
+    :::ug
     [x, *rest] = [1, 2, 3, 4] ;; rest = [2, 3, 4]
     [x, *rest, y] = [1, 2, 3, 4] ;; rest = [2, 3]
 
@@ -114,6 +127,7 @@ Variables may also be given *default values*. If the list to match is
 too short, variables will match with their default values if they have
 one.
 
+    :::ug
     [x, y = None] = [1, 2] ;; x = 1, y = 2
     [x, y = None] = [1]    ;; x = 1, y = None
 
@@ -123,23 +137,27 @@ one.
 Through pattern matching, it is possible to extract values from a
 dictionary by key.
 
+    :::ug
     [=> a] = ["a" => 1] ;; a = ["a" => 1] ? "a" = 1
     [=> b] = ["a" => 1] ;; failure: there is no key named "b"
 
 The variable's name does not have to be the same as the key. The
 pattern `=> a` is shorthand for `a => a`
 
+    :::ug
     [a => x] = ["a" => 1] ;; x = ["a" => 1] ? "a" = 1
     [a => [x, y]] = ["a" => [1, 2]] ;; x = 1, y = 2
 
 You can use `**variable` to mop up any extra keys.
 
+    :::ug
     [=> a] = ["a" => 1, "b" => 2] ;; failure because the key "b" is not matched
     [=> a, **rest] = ["a" => 1, "b" => 2] ;; rest = ["b" => 2]
 
 A keyword pattern can also be associated to a default value, which it
 will match if there is nothing else.
 
+    :::ug
     [=> a = None] = [1] ;; a = 1
     [=> a = None] = [] ;; a = None
 
@@ -155,15 +173,18 @@ replacement.
 For instance, let's say you want to set x to the absolute value of
 y. You could do this:
 
+    :::ug
     x = abs[y]
 
 Or you could do this:
 
+    :::ug
     @abs x = y
 
 The latter way is quite useful in at least two situations. First, it
 is useful if y is buried in some data structure. Compare:
 
+    :::ug
     #point[x, y] = #point[1, -2]
     x := abs[x]
     y := abs[y]
@@ -172,6 +193,7 @@ is useful if y is buried in some data structure. Compare:
 
 Second, it is useful to wrap functions. Compare:
 
+    :::ug
     f = classmethod[[cls] -> ...]
 
     @classmethod f = [cls] -> ...
@@ -188,10 +210,12 @@ then matched normally.
 If you wish to define your own type and have them decompose values for
 further matching, simply note that:
 
+    :::ug
     x [y, z] = ...
 
 Is equivalent to
 
+    :::ug
     [y, z] = x.__deconstruct__[...]
 
 Threfore, you only need to implement a `__deconstruct__` class method
@@ -209,18 +233,27 @@ pattern matching engine can be used.
 
 **Declaring variables**
 
+    :::ug
     [x, y] = [1, 2]
     do_stuff_with[x, y]
 
 
 **Declaring functions**
 
+    :::ug
+    ;; This is how you'd normally do it
     add = [x, y] -> x + y
     print[add[1, 2]]
+
+    ;; If there are no []s in the definition there are no []s in the call!
+    greeter = str name -> "Hello " + name
+    print[greeter "Balthazar"]
+    print[greeter.Peter] ;; .Peter is syntactic sugar for "Peter"
 
 
 **match statement**
 
+    :::ug
     match [1, 2, 3]:
         [] -> print["empty list"]
         [x] -> print["length is one"]
@@ -230,6 +263,7 @@ pattern matching engine can be used.
 
 **Looping**
 
+    :::ug
     (1 to 10) each i -> print[i]
 
     enumerate[["milk", "eggs", "bananas"]] each
@@ -240,6 +274,7 @@ pattern matching engine can be used.
 
 **Exception handling**
 
+    :::ug
     1 / 0 !!
         ZeroDivisionError e ->
             print["ZeroDivisionError:", e]
@@ -251,5 +286,7 @@ Only **limited** pattern matching is allowed here. Types or
 deconstructors are *not allowed* in the patterns on the left hand side
 of `:=`: if present, they will be interpreted differently.
 
+    :::ug
     d = #point[x = 1, y = 2]
     [d.x, d.y] := [3, 4] ;; d is now #point[x = 3, y = 4]
+

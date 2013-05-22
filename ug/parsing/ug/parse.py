@@ -15,7 +15,7 @@ def build_op_groups():
         OperatorGroup("sjuxt", "XWY"),
         OperatorGroup("wjuxt", "X W Y"),
 
-        OperatorGroup("pfx", "._Y", "#_Y", "?_Y"),
+        OperatorGroup("pfx", "._Y", "#_Y", "?_Y", "$_Y"),
         OperatorGroup("deco", "@_Y"),
 
         OperatorGroup("add", "X_+_Y", "X_-_Y"),
@@ -61,7 +61,7 @@ def build_op_matrix():
 
     op_matrix = OperatorMatrix(op_groups.gnames)
 
-    op_matrix.left_assoc("sjuxt", "wjuxt", "add", "mul", "binor", "binxor", "binand", "cmp", "and", "or", "seq", "nl")
+    op_matrix.left_assoc("sjuxt", "wjuxt", "add", "mul", "binor", "binxor", "binand", "cmp", "and", "or", "seq", "nl", "map")
     op_matrix.right_assoc("pow", "lbda", "decl", "colon")
 
     # major

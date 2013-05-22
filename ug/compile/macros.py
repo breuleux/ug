@@ -213,6 +213,16 @@ class ParseLHSAssign(ParseLHS):
             raise wrong(node,
                         "The evaluation of this expression did not yield a #send node.")
 
+    def visit_oper(self, node, op, a, b, d):
+        node = self.compiler.visit(node)
+        if isinstance(node, hs.send):
+            self.register_variable(node, None)
+            return hs.value("_")
+        else:
+            raise wrong(node,
+                        "The evaluation of this expression did not yield a #send node.")
+
+
 @macro(":=")
 def assign(self, node, args):
     lhs, rhs = args[:]
@@ -227,6 +237,8 @@ def assign(self, node, args):
         value = hs.send(rv, build_scall(lib.index, hs.value(i)))
         if isinstance(v, hs.send):
             target, message = v[:]
+            target = hs.processed(target)
+            message = hs.processed(message)
             instr = hs2.send(target,
                              build_fcall(hs.send(hs.value(lib.hashstruct),
                                                  hs.value("assign")),
@@ -618,11 +630,31 @@ class ParseImport(ASTVisitor):
 def import_(self, node, args):
     pi = ParseImport()
     spec, variables = pi.visit(args)
+    if isinstance(spec, str):
+        spec = [spec]
+        variables = hs.square(variables)
     # print(spec)
     # print(variables)
     # return hs.value(123)
     return hs.eqassoc(variables,
                       build_scall(lib.imp, hs.value(spec)))
+
+
+@prefix_macro("_$_")
+def __shortvar(self, node, args, arg):
+    if isinstance(arg, str):
+        return hs2.send(hs.processed("$"),
+                        hs2.value(arg))
+    else:
+        return hs2.send(hs.processed("$"),
+                        arg)
+
+@macro("$")
+def shortvar(self, node, args):
+    if args == hs.value(Void):
+        return hs.processed("$")
+    else:
+        return __shortvar(self, node, args)
 
 
 

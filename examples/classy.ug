@@ -24,3 +24,4 @@ animals each
     Cow x -> print[x.name, "is a cow"]
 
 animals each x -> x.cry[]
+

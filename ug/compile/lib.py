@@ -407,7 +407,7 @@ def send(obj, msg):
         return obj(**msg)
     elif isinstance(msg, hybrid):
         return obj(*msg.tuple, **msg.dict)
-    elif isinstance(msg, str):
+    elif isinstance(msg, str) and not msg.startswith("__"):
         return getattr(obj, msg)
     elif isinstance(msg, index):
         return obj[msg.item]
@@ -421,11 +421,17 @@ def send(obj, msg):
         else:
             return obj.__recv__(msg)
     else:
-        return obj.__recv__(msg)
+        try:
+            f = obj.__recv__
+        except AttributeError:
+            if isinstance(msg, str):
+                return getattr(obj, msg)
+        else:
+            return f(msg)
 
 @library_function
 def send_safeguard(obj, msg):
-    _SHOW_FRAME = False
+    # _SHOW_FRAME = False
     try:
         return obj.__recv_safeguard__(msg)
     except AttributeError:
@@ -444,7 +450,7 @@ def send_safeguard(obj, msg):
 
 @library_function("map")
 def ugmap(seq, obj):
-    _SHOW_FRAME = False
+    # _SHOW_FRAME = False
     for entry in seq:
         result = send_safeguard(obj, entry)
         if isinstance(result, hs.ok):
@@ -452,11 +458,11 @@ def ugmap(seq, obj):
         elif isinstance(result, hs.guard_fail):
             continue
         else:
-            raise TypeError("Match failed", result[0])
+            raise TypeError("Match failed", result)
 
 @library_function("each")
 def ugeach(seq, obj):
-    _SHOW_FRAME = False
+    # _SHOW_FRAME = False
     for entry in seq:
         result = send_safeguard(obj, entry)
         if isinstance(result, (hs.ok, hs.guard_fail)):
@@ -692,6 +698,7 @@ def setattribute(x, attr, value):
 
 @library_function
 def imp(specifications):
+    _SHOW_FRAME = False
     results = []
     for entry in specifications:
         if isinstance(entry, str):
@@ -704,4 +711,13 @@ def imp(specifications):
 
 
 library_function(struct)
+
+
+class Wrap(ugobj):
+    def __recv_safeguard__(self, message):
+        return hs.ok((message,))
+    def __recv__(self, message):
+        return (message,)
+
+library_function("wrap")(Wrap())
 

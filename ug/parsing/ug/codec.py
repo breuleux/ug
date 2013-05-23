@@ -16,20 +16,28 @@ idchars = 'a-zA-Z0-9\\\\\\-=~<>/|\'"^`'.replace(delim_start, "").replace(delim_e
 
 digraphs = [
     # Standards digraphs
-    ("<>", "\u2666"), #diams
     ("<<", "\u00AB"), #laquo
-    ("<=", "\u21D0"), #Left
-    ("<-", "\u2190"), #left
-    ("=<", "\u2264"), #le
-    (">=", "\u2265"), #ge
     (">>", "\u00BB"), #raquo
-    ("=>", "\u21D2"), #Right
+    ("<-", "\u2190"), #left
     ("->", "\u2192"), #right
+    ("<=", "\u21D0"), #Left
+    ("=>", "\u21D2"), #Right
+    (">=", "\u2265"), #ge
+    ("=<", "\u2264"), #le
+    ("/=", "\u2260"), #ne
+    ("<>", "\u2666"), #diams
+    ("+-", "\u00B1"),
+    ("[|", "\u27E6"),
+    ("|]", "\u27E7"),
+    ("{|", "\u2983"),
+    ("|}", "\u2984"),
+    ("|>", "\u25B6"),
+    ("<|", "\u25C0"),
+
+
+    # Not 100% sure about these
     ("~~", "\u2248"), #asymp
     ("~=", "\u2245"), #cong 
-    ("/=", "\u2260"), #ne
-
-    # Not 100% sure about these two
     ("|-", "\u22A6"),
     ("|=", "\u22A7"),
 
@@ -40,7 +48,6 @@ digraphs = [
     # ("<~", u"\u219C"), #lwave
     # ("~>", u"\u219D"), #rwave
 ]
-
 
 # Each line of the identifiers table works as follows:
 # (("A'", "Aac", "$Aacute",), u"\u00C1"),

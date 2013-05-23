@@ -317,7 +317,7 @@ class Tokenizer:
                 return self.next_batch()
 
         elif self.buffer:
-            self.process_buffer(self.pfx, True, 0)
+            self.process_buffer(self.buffer_pfx, True, 0)
             return self.dump_buffer()
         elif self.last and self.last.kind != "id":
             self.last = None

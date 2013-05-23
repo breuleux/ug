@@ -5,7 +5,152 @@ Slug: tour
 Author: Olivier Breuleux
 Summary: Quick tour
 
+Contents
+========
 
+[TOC]
+
+
+UG Markup
+=========
+
+Unholy Grail lets you write Unicode characters using a simple ASCII
+markup. The markup can be used to define and use Unicode variables,
+Unicode operators and -- of course -- Unicode strings without having
+to worry about how to type them.
+
+First, a limited number of specific character sequences translate to
+the characters they look like:
+
+
+<table markdown class=symbols>
+
+  <tr>
+    <td class=encoded>`<<`</td>
+    <td class=decoded>`«`</td>
+    <td class=symname>open guillemet</td>
+    <td class=encoded>`>>`</td>
+    <td class=decoded>`»`</td>
+    <td class=symname>close guillemet</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`<-`</td>
+    <td class=decoded>`←`</td>
+    <td class=symname>left arrow</td>
+    <td class=encoded>`->`</td>
+    <td class=decoded>`→`</td>
+    <td class=symname>right arrow</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`<=`</td>
+    <td class=decoded>`⇐`</td>
+    <td class=symname>left double arrow</td>
+    <td class=encoded>`=>`</td>
+    <td class=decoded>`⇒`</td>
+    <td class=symname>right double arrow</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`>=`</td>
+    <td class=decoded>`≥`</td>
+    <td class=symname>greater than</td>
+    <td class="encoded lt">`=<`</td>
+    <td class="decoded lt">`≤`</td>
+    <td class="symname lt">less than</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`<>`</td>
+    <td class=decoded>`♦`</td>
+    <td class=symname>diamond</td>
+    <td class=encoded>`/=`</td>
+    <td class=decoded>`≠`</td>
+    <td class=symname>not equal</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`[|`</td>
+    <td class=decoded>`⟦`</td>
+    <td class=symname>left double square bracket</td>
+    <td class=encoded>`|]`</td>
+    <td class=decoded>`⟧`</td>
+    <td class=symname>right double square bracket</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`{|`</td>
+    <td class=decoded>`⦃`</td>
+    <td class=symname>left double curly bracket</td>
+    <td class=encoded>`|}`</td>
+    <td class=decoded>`⦄`</td>
+    <td class=symname>right double curly bracket</td>
+  </tr>
+
+  <tr>
+    <td class=encoded>`<|`</td>
+    <td class=decoded>`◀`</td>
+    <td class=symname>left triangle</td>
+    <td class=encoded>`|>`</td>
+    <td class=decoded>`▶`</td>
+    <td class=symname>right triangle</td>
+  </tr>
+
+  <tr>
+    <td class=encoded><code>\`\`</code></td>
+    <td class=decoded><code>\`</code></td>
+    <td class=symname>backtick</td>
+    <td class=encoded><code>\`br\`</code></td>
+    <td class=decoded>`↲`</td>
+    <td class=symname>newline</td>
+  </tr>
+
+</table>
+
+In a nutshell, suppose you have the following line of code:
+
+    :::ug
+    print["x >= 0 and x =< 10"]
+
+When executed, it will print the following to the terminal:
+
+    :::text
+    x ≥ 0 and x ≤ 10
+
+As indicated in the table, `>=` turned into `≥` and `=<` turned into
+`≤`. If you want to actually print out ">=" or "=<", you can *escape*
+one of the characters like this:
+
+    :::ug
+    print["x `>`= 0 and x `=`< 10"]
+    ;; x >= 0 and x =< 10
+
+Besides the special characters listed in the table, you can write any
+Unicode character by putting its name between backticks. For instance:
+
+    :::ug
+    print["`alpha` `in` `beta``gamma`"]
+    ;; α ∈ βγ
+
+The names available are the same as the [HTML symbol
+entities](http://www.w3schools.com/tags/ref_symbols.asp). You can also
+specify a character by decimal (`number`) or hexadecimal number
+(`^number`).
+
+    :::ug
+    print["`65` `^2194` `66`"]
+    ;; A ↔ B
+
+If you had to remember only one thing, though, it would be that
+newlines, in strings, are encoded as <code>\`br\`</code>. `\n` *will
+not work*. In fact, `\` escapes nothing at all in Unholy Grail (escape
+`"` by doubling it).
+
+    :::ug
+    print["line1`br`line2\na""bc\"]
+    ;; line1
+    ;; line2\na"bc\
 
 
 Literals and special values
@@ -20,6 +165,9 @@ Literals and special values
     "these", "are", "strings"
     .these, .are, .strings, .too
 
+    "He came in and said: ""I farted"""  ;; " is escaped by doubling it
+    """"                                 ;; so this is the " character
+
     True, False, None
     Void, ()                             ;; Void == ()
 
@@ -29,7 +177,7 @@ Literals and special values
 Data structures
 ===============
 
-The basic data types in UG are *lists*:
+Basic data structures in UG are *lists*:
 
     :::ug
     [], [1], ["a", "b", "c"]
@@ -122,10 +270,8 @@ initial value. However, from that moment, assignment must use the
     x ? 0 = 111    ;; NOT OK!
     x ? 0 := 111   ;; ok
 
-UG does not allow shadowing existing variables. If the variable `x`
-exists in scope, then `x = y` is an error (you can however define the
-same variable in multiple non overlapping scopes). (Note: if you
-*really* want to do it, you can use the `let` statement).
+UG does not allow shadowing existing variables\*. If the variable `x`
+exists in scope, then `x = y` is an error. (\*Unless you use `let`).
 
 You can declare or assign to multiple variables at once:
 
@@ -172,7 +318,7 @@ simple* rules:
    the line right before it, and **)** at the end of its last
    line.
      * **Unless** it is within any type of brackets. Inside `()`,
-       `[]` and `{}` all indent is *ignored* (so it's even simpler).
+       `[]` and `{}` all indent is *ignored*.
 2. There is an implicit **comma** (**,**) at the end of **every** line,
    unless it is continuated on the next line, or if the comma would come
    right after an opening bracket or right before a closing bracket.
@@ -195,8 +341,8 @@ Is equivalent to:
     else: (
         12345 ) ,
 
-Using these rules, any UG code can be rewritten as a one-liner, though
-doing so is not recommended.
+Using these rules, any piece of UG code can be rewritten to fit on a
+single line, though doing so is not recommended.
 
 
 Conditionals
@@ -227,7 +373,7 @@ There are a few ways to write a conditional expression:
 Be careful, though: the first way will not work if you put `if` on the
 same line as `result =`. The second way requires the parentheses,
 because `if/else` must be comma-separated in a `(...)` block. The
-third way will always work.
+third way will work everywhere.
 
 
 Looping
@@ -271,11 +417,8 @@ You can deconstruct the argument, and even use pattern matching on it:
 to. You can call the `list` function on it to get a list of results.
 
     :::ug
-    numbers = 1 to 100
+    numbers = 1 to 100 ;; upper bound not inclusive
     squares = list! numbers map i -> i ** 2
-
-Besides the fact it yields results only on demand, syntactically,
-`map` works just like `each`.
 
 The right hand side of `each` or `map` can be a function, but there is
 a caveat: most functions with a single argument take a *tuple* of
@@ -289,6 +432,36 @@ To solve this, you can use `wrap` as an intermediary step:
 
     :::ug
     [1, 2, 3] map wrap each print ;; WORKS!
+
+
+Break and continue
+------------------
+
+When used in the body of a loop, `break` will stop the
+iteration. `continue` will skip to the next element, *yielding
+nothing* if it is in `map`.
+
+    :::ug
+    numbers = 1 to 100
+    even_squares = list! numbers map i ->
+        if (i > 10):
+            break
+        elif (i mod 2):
+            continue
+        else:
+            i ** 2
+    print! even_squares ;; [4, 16, 36, 64]
+
+However, there is a shorter way to write this using *guards*:
+
+    :::ug
+    even_squares = list! numbers map
+        i when (i > 10) -> break
+        i when not (i mod 2) -> i ** 2
+
+The first clause will stop the loop when `i` is greater than 10. The
+second will generate even squares. Odd numbers below 10 will fall
+through to an implicit `continue` clause, so nothing is produced.
 
 
 Pattern matching
@@ -371,8 +544,8 @@ list. For instance:
     ;; is equivalent to:
     list[reversed[sorted[[7, 3, 1, 7, 99, 12]]]]
 
-If there is an indented block after `!`, it will be interpreted as a
-list:
+If there is an indented block after `!`, each line will be interpreted
+as an element of a list:
 
     :::ug
     print!
@@ -405,9 +578,13 @@ Default values for arguments with `=`
         increment[10]
         increment[10, 2]
 
+
+Pattern matching
+----------------
+
 It is possible to define *multiple clauses*, with one arrow per
-clause. To illustrate, consider this recursive implementation of
-fibonacci numbers:
+clause. Look at this recursive implementation of fibonacci numbers,
+for instance:
 
     :::ug
     fib =
@@ -416,9 +593,22 @@ fibonacci numbers:
         [n] when (n > 1) ->
             fib[n - 1] + fib[n - 2]
 
-In fact, any legal clause for `match` is a legal clause for a
-function. The calculator example seen earlier can thus be rewritten
-without `match`:
+This can be easily used to implement single or multiple dispatch:
+
+    :::ug
+    add =
+        [int x, int y] -> x + y
+        [str x, y] -> add[int!x, y]
+        [x, str y] -> add[x, int!y]
+
+    print!
+        add[1, 2]     ;; 3
+        add["1", 2]   ;; 3
+        add[1, "2"]   ;; 3
+        add["1", "2"] ;; 3
+
+Any legal clause for `match` is a legal clause for a function. The
+calculator example seen earlier can be rewritten without `match`:
 
     :::ug
     calc =
@@ -431,6 +621,7 @@ without `match`:
         [#times[x, y]] -> calc[x] * calc[y]
         [#div[x, y]] -> calc[x] / calc[y]
         [_] -> raise TypeError["Unknown instruction", instruction]
+
 
 
 Exceptions
@@ -466,9 +657,9 @@ your exception handler, one for every kind of exception:
 
 There are two kinds of special clauses you can add. The `success`
 clause will be executed if there is no error, with the result of the
-expression as its value (akin to the `else` clause in Python's
+expression as its argument (akin to the `else` clause in Python's
 `try/except`). The `finally` clause will always be executed at the
-end, no matter what happens, but its return value is irrelevant.
+end, no matter what happens.
 
     :::ug
     ;; Prints "finally", then "abc"

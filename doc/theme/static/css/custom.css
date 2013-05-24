@@ -1,0 +1,23 @@
+
+
+.symbols td {
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+
+.symname {
+    background-color: #f0f8ff
+}
+
+/* .lt { */
+/*     color: #aa0000 */
+/* } */
+
+.decoded {
+    background-color: #e0f0ff
+}
+
+.encoded {
+    background-color: #d0e0f0
+}
+

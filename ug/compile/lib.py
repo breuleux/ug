@@ -1,4 +1,5 @@
 
+from collections import OrderedDict
 import operator
 from functools import reduce
 from types import FunctionType
@@ -331,12 +332,13 @@ class Checker:
         return self.f(value)
 
 
-@library_function("raise")
-class raiser:
-    @staticmethod
-    def __recv__(message):
+class Raiser:
+    def __recv__(self, message):
         _SHOW_FRAME = False
         raise message
+raiser = Raiser()
+
+library_function("raise")(raiser)
 
 
 @library_function
@@ -398,6 +400,7 @@ class Deconstructor:
 
 library_function(hybrid)
 library_function(dict)
+library_function(OrderedDict)
 library_function(index)
 library_function("#")(hs)
 
@@ -413,42 +416,70 @@ library_function("%%list")(lambda *args: list(args))
 
 @library_function
 def send(obj, msg):
-    _SHOW_FRAME = False
-    if isinstance(msg, (list, tuple)):
-        return obj(*msg)
-    elif isinstance(msg, dict):
-        return obj(**msg)
-    elif isinstance(msg, hybrid):
-        return obj(*msg.tuple, **msg.dict)
-    elif isinstance(msg, str) and not msg.startswith("__"):
-        return getattr(obj, msg)
-    elif isinstance(msg, index):
-        return obj[msg.item]
-    elif isinstance(msg, hs.assign):
-        m, v = msg[:]
-        if isinstance(m, str):
-            return setattr(obj, m, v)
-        elif isinstance(m, index):
-            obj[m.item] = v
-            return None
-        else:
-            return obj.__recv__(msg)
-    else:
-        try:
-            f = obj.__recv__
-        except AttributeError:
-            if isinstance(msg, str):
-                return getattr(obj, msg)
+    # _SHOW_FRAME = False
+    try:
+        f = type(obj).__recv__
+    except AttributeError:
+        if isinstance(msg, (tuple, list)):
+            return obj(*msg)
+        elif isinstance(msg, dict):
+            return obj(**msg)
+        elif isinstance(msg, hybrid):
+            return obj(*msg.tuple, **msg.dict)
+        elif isinstance(msg, str):
+            return getattr(obj, msg)
+        elif isinstance(msg, index):
+            return obj[msg.item]
+        elif isinstance(msg, hs.assign):
+            m, v = msg[:]
+            if isinstance(m, str):
+                return setattr(obj, m, v)
+            elif isinstance(m, index):
+                obj[m.item] = v
+                return None
             else:
-                raise
-        else:
-            return f(msg)
+                return obj.__recv__(msg)
+        print(obj)
+        raise
+    else:
+        # print(f, obj)
+        return f(obj, msg)
+
+    # if isinstance(msg, (list, tuple)):
+    #     return obj(*msg)
+    # elif isinstance(msg, dict):
+    #     return obj(**msg)
+    # elif isinstance(msg, hybrid):
+    #     return obj(*msg.tuple, **msg.dict)
+    # elif isinstance(msg, str) and not msg.startswith("__"):
+    #     return getattr(obj, msg)
+    # elif isinstance(msg, index):
+    #     return obj[msg.item]
+    # elif isinstance(msg, hs.assign):
+    #     m, v = msg[:]
+    #     if isinstance(m, str):
+    #         return setattr(obj, m, v)
+    #     elif isinstance(m, index):
+    #         obj[m.item] = v
+    #         return None
+    #     else:
+    #         return obj.__recv__(msg)
+    # else:
+    #     try:
+    #         f = obj.__recv__
+    #     except AttributeError:
+    #         if isinstance(msg, str):
+    #             return getattr(obj, msg)
+    #         else:
+    #             raise
+    #     else:
+    #         return f(msg)
 
 @library_function
 def send_safeguard(obj, msg):
-    # _SHOW_FRAME = False
+    _SHOW_FRAME = False
     try:
-        return obj.__recv_safeguard__(msg)
+        f = obj.__recv_safeguard__
     except AttributeError:
         if isinstance(msg, (tuple, list)):
             return hs.ok(obj(*msg))
@@ -461,6 +492,8 @@ def send_safeguard(obj, msg):
         elif isinstance(msg, index):
             return hs.ok(obj[msg.item])
         raise
+    else:
+        return f(msg)
 
 
 @library_function("map")
@@ -535,6 +568,17 @@ def patch_dict(*args):
         return {}
     else:
         rval = {}
+        for entry in args:
+            rval.update(entry)
+        return rval
+
+@library_function
+def patch_odict(*args):
+    _SHOW_FRAME = False
+    if len(args) == 0:
+        return OrderedDict()
+    else:
+        rval = OrderedDict()
         for entry in args:
             rval.update(entry)
         return rval
@@ -794,4 +838,45 @@ class Wrap(ugobj):
         return (message,)
 
 library_function("wrap")(Wrap())
+
+
+class frozendict(dict):
+    def __setattr__(self, attr, value):
+        raise TypeError("'frozendict' object does not support setting attributes")
+    def __setitem__(self, item, value):
+        raise TypeError("'frozendict' object does not support item assignment")
+    def __str__(self):
+        return "frozendict(%s)" % super().__str__()
+
+class frozenOrderedDict(OrderedDict):
+    def __init__(self, *args, **kwargs):
+        self.__locked = False
+        super().__init__(*args, **kwargs)
+        self.__locked = True
+            
+    def __setitem__(self, item, value):
+        if self.__locked:
+            raise TypeError("'frozenOrderedDict' object does not support item assignment")
+        else:
+            super().__setitem__(item, value)
+
+class Frz(ugobj):
+    def __recv_safeguard__(self, message):
+        return hs.ok(self.__recv__(message))
+    def __recv__(self, message):
+        print(message)
+        if isinstance(message, list):
+            return tuple(message)
+        elif isinstance(message, set):
+            return frozenset(message)
+        elif isinstance(message, OrderedDict):
+            return frozenOrderedDict(message)
+        elif isinstance(message, dict):
+            return frozendict(message)
+        elif isinstance(message, (tuple, frozenset, frozendict)):
+            return message
+        else:
+            return message.__frz__()
+
+library_function("frz")(Frz())
 

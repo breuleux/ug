@@ -65,7 +65,7 @@ class struct(metaclass = structmc):
         if isinstance(message, str):
             return getattr(self, message)
         elif isinstance(message, index):
-            return self[index.item]
+            return self[message.item]
         else:
             raise Exception("%s does not acknowledge message %s" % (self, message))
 

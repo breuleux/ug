@@ -321,17 +321,17 @@ class Compiler(ASTVisitor):
             if len(t) == 1 and isinstance(t[0], list):
                 t = hs2.seq(*t[0])
             else:
-                t = build_scall(lib.patch_tuple,
+                t = build_scall(lib.patch_list,
                                 *[hs2.seq(*x) if isinstance(x, list) else x
                                   for x in t])
         if d:
             def mkdict(kvs):
-                return build_scall(dict,
+                return build_scall(lib.OrderedDict,
                                    hs2.seq(*[hs2.seq(x[0], x[1]) for x in kvs]))
             if len(d) == 1 and isinstance(d[0], list):
                 d = mkdict(d[0])
             else:
-                d = build_scall(lib.patch_dict,
+                d = build_scall(lib.patch_odict,
                                 *[mkdict(x) if isinstance(x, list) else x
                                   for x in d])
         if t and d:

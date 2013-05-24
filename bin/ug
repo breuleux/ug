@@ -3,7 +3,7 @@
 """Unholy Grail.
 
 Usage:
-  ug (en|encode|de|decode|tok|ast|eval|test) [FILE | -s STR]
+  ug (en|encode|de|decode|tok|ast|ir|eval|test) [FILE | -s STR]
 
 Arguments:
   FILE          Source file.
@@ -14,12 +14,21 @@ Options:
 """
 
 from docopt import docopt
-from descr import boxy_terminus, HTMLRuleBuilder as RB
 
-from ug import SyntaxError
+from descr import boxy_terminus, HTMLRuleBuilder as RB, descr
+from descr.util import Table, Group
+
+from ug import (
+    encode, decode,
+    Source, parse,
+    compile, SyntaxError
+    )
+
+from ug.lib import hashstruct as hs, struct, hastag, gettag
+from ug.parsing.ug.tokenizer import tokenizer
+from ug.compile.topy import evaluate
 from ug.format import errors
-from ug.lib import struct, hastag, gettag
-from descr import descr
+from ug.format.displayrules import ugdescr, rules
 
 
 def descr2(x, recurse = None):
@@ -44,9 +53,6 @@ class prerror:
             rules.rearrange(".hl1, .hl2, .hl3, .hlE",
                             lambda classes, children: ["_"]*len(children[0]) if not children[0].strip() else children)
 
-            # rules.css_text_decoration(".hl1", "underline")
-            # rules.css_text_decoration(".hl2", "underline")
-            # rules.css_text_decoration(".hl3", "underline")
             e = errors.process_error(value)
             pr = boxy_terminus(rules = rules)
             if e is None:
@@ -57,257 +63,74 @@ class prerror:
                 pr(e)
                 return True
 
+def get_source(args):
+    if args["FILE"]:
+        try:
+            s = open(args["FILE"]).read()
+            path = args["FILE"]
+        except IOError as e:
+            exit(e)
+    else:
+        s = args["-s"]
+        path = None
+    return s, path
+
+def needs_source(f):
+    def newf(args):
+        s, path = get_source(args)
+        return f(s, path)
+    return newf
+
+@needs_source
+def x_en(s, path):
+    print(encode(s))
+x_encode = x_en
+
+@needs_source
+def x_de(s, path):
+    print(decode(s))
+x_decode = x_de
+
+@needs_source
+def x_tok(s, path):
+    rules = RB()
+    rules.hide(".source_header")
+    rules.mclasses(".table > * > .{@str}", {"scalar", "@str"})
+    pr = boxy_terminus(rules = rules)
+    things = []
+    for entry in tokenizer(Source(s, url = path)):
+        things.append([str(entry), Group([entry.loc])])
+    pr(Table(things))
+
+@needs_source
+def x_ast(s, path):
+    result = parse(Source(s, url = path))
+    pr = boxy_terminus()
+    pr((result), rules = rules, descr = ugdescr)
+
+@needs_source
+def x_ir(s, path):
+    ast = parse(Source(s, url = path))
+    result = compile(ast)
+    pr = boxy_terminus()
+    rules.css_border(".{!located}", "4px solid red")
+    pr(result, rules = rules, descr = ugdescr)
+
+@needs_source
+def x_eval(s, path):
+    src = Source(s, url = path)
+    ast = parse(src)
+    ast2 = compile(ast)
+    print(evaluate(ast2, source = src))
+
 
 if __name__ == '__main__':
     args = docopt(__doc__)
 
-    en = args["en"] or args["encode"]
-    de = args["de"] or args["decode"]
-    tok = args["tok"]
-    ast = args["ast"]
-    eval = args["eval"]
-    test = args["test"]
-
-
     with prerror() as p:
-        if en or de or tok or ast or test or eval:
-            if args["FILE"]:
-                try:
-                    s = open(args["FILE"]).read()
-                    path = args["FILE"]
-                except IOError as e:
-                    exit(e)
-            else:
-                s = args["-s"]
-                path = None
-
-            if en:
-                from ug import encode
-                print(encode(s))
-            elif de:
-                from ug import decode
-                print(decode(s))
-            elif tok:
-                from ug import Source
-                from ug.parsing.ug.tokenizer import tokenizer
-                from descr.util import Table, Group
-                rules = RB()
-                rules.hide(".source_header")
-                rules.mclasses(".table > * > .{@str}", {"scalar", "@str"})
-                pr = boxy_terminus(rules = rules)
-                things = []
-                for entry in tokenizer(Source(s, url = path)):
-                    things.append([str(entry), Group([entry.loc])])
-                pr(Table(things))
-            elif ast:
-                from ug import parse, Source
-                from descr.util import Quote
-                from descr import make_joiner
-                from ug.format.displayrules import ugdescr, rules
-                result = parse(Source(s, url = path))
-                pr = boxy_terminus()
-                pr((result), rules = rules, descr = ugdescr)
-                # std_terminus(css = css, manipulators = manips)(result)
-            elif eval:
-                from ug import parse, compile, Source
-                from ug.compile.topy import evaluate
-                src = Source(s, url = path)
-                ast = parse(src)
-                ast2 = compile(ast)
-                print(evaluate(ast2, source = src))
-            elif test:
-                from ug import parse, compile, Source
-                from ug.lib import hashstruct as hs
-                from ug.format.displayrules import ugdescr, rules
-                ast = parse(Source(s, url = path))
-                result = compile(ast)
-
-                pr = boxy_terminus()
-                # rules = RB()
-                rules.css_border(".{!located}", "4px solid red")
-                pr(result, rules = rules, descr = ugdescr)
-                # std_terminus(css = css, manipulators = manips)(result)
-            else:
-                exit("This should not happen...")
+        for possibility in "en encode de decode tok ast ir eval".split():
+            if args[possibility]:
+                globals()["x_"+possibility](args)
+                break
 
 
-
-        # # print(args)
-        # schema = Schema({'FILE': Use(open, error='FILE should be readable'),
-        #                  # str: object
-        #                  })
-
-        # try:
-        #     print(args)
-        #     args = schema.validate({"FILE": "ugc"}) #args)
-        # except SchemaError as e:
-        #     exit(e)
-
-        # print(args)
-        # print("ok")
-
-    # print("ok")
-    # print(type(args))
-    # print(args)
-
-
-
-
-
-
-
-
-
-# # import optparse
-# # import sys
-# # from quaint.tools.utils import attrdict
-
-# if __name__ == "__main__":
-
-#     usage = """quaint <command> [options]
-
-# Where command is one of:
-
-# decode, de: quaint decode <source> [destination] [options]
-#   Decode the source file, assuming the file is encoded using the
-#   quaint encoding. The coded ASCII sequences will be printed as UTF-8
-#   in the destination file, or to stdout if no destination is provided.
-#   The -s option can be used instead of the source argument.
-
-# encode, en: quaint encode <source> [destination] [options]
-#   Encode a UTF-8-encoded source file in the quaint encoding. All
-#   Unicode characters will be encoded by readable ASCII sequences, as
-#   per the quaint encoding's specification.
-#   The -s option can be used instead of the source argument.
-
-# highlight, hl: quaint highlight <source> [destination] [options]
-#   Pretty-print the source file, assuming the file is encoded using the
-#   quaint encoding. If destination is provided, the source will be
-#   pretty-printed in HTML. Else, the source will be pretty-printed in
-#   the console.
-#   The -s option can be used instead of the source argument.
-
-# parse, pa: quaint parse <source> [destination] [options]
-#   This is for debug right now."""
-
-#     oparser = optparse.OptionParser(usage = usage)
-#     oparser.add_option("-s", "--string", dest="s",
-#                        help="String to evaluate, use instead of a file.")
-#     oparser.add_option("--nolines",
-#                        action="store_true", dest="nolines", default=False,
-#                        help="Do not display line numbers.")
-
-#     options, raw_args = oparser.parse_args()
-
-#     def contents_and_writeto():
-#         if not arguments and not options.s:
-#             print("You must provide a source file for this command!")
-#             print("You can get help with 'quaint --help'")
-#             sys.exit(0)
-#         expr = options.s
-#         if expr is not None:
-#             return (expr, open(arguments[0], "w") if arguments else sys.stdout)
-#         else:
-#             return (open(arguments[0]).read(), open(arguments[1], "w") if arguments[1:] else sys.stdout)
-
-#     def with_rich_error(thunk):
-#         from quaint.format import \
-#             HTMLFormat, \
-#             TermColorFormat, \
-#             TermPlainFormat, \
-#             rich_error
-
-#         try:
-#             return thunk()
-#         except QuaintSyntaxError as e:
-#             e = rich_error(e)
-#             if hasattr(e, "highlight"):
-#                 print(e.highlight(format = TermColorFormat(True),
-#                                   context = 2), file = sys.stderr)
-#             else:
-#                 print("QuaintSyntaxError:", e)
-#             sys.exit(0)
-
-#     def decode_and_parse(contents):
-#         from quaint.format import HTMLFormat, TermColorFormat, rich_error
-#         # return with_rich_error(lambda: parser.parse(decode(contents)))
-#         return with_rich_error(lambda: parser.parse2(decode(contents)))
-
-#     if not raw_args:
-#         oparser.print_help()
-#         sys.exit(0)
-
-#     command, *arguments = raw_args
-
-#     if command in ("decode", "de"):
-#         from quaint.parse import decode
-#         contents, writeto = contents_and_writeto()
-#         print(decode(contents), file = writeto)
-
-#     elif command in ("encode", "en"):
-#         from quaint import encode
-#         contents, writeto = contents_and_writeto()
-#         print(encode(contents), file = writeto)
-
-#     elif command in ("parse", "pa"):
-#         from quaint import parser, decode, QuaintSyntaxError
-#         contents, writeto = contents_and_writeto()
-#         x = decode_and_parse(contents)
-#         print(x, file = writeto)
-
-#     # elif command in ("ast", "as"):
-#     #     from quaint import parser, decode, QuaintSyntaxError
-#     #     from quaint.compile import ast2
-#     #     contents, writeto = contents_and_writeto()
-#     #     x = decode_and_parse(contents)
-#     #     e = with_rich_error(lambda: ast2.convert(x).to_ast2(attrdict(externals = {})))
-#     #     print(e, file = writeto)
-
-#     elif command in ("highlight", "hl"):
-#         from quaint import QuaintSyntaxError, parser, decode
-#         from quaint.format import \
-#             ASTHighlighter, HTMLFormat, TermColorFormat, basic_html_style
-
-#         contents, writeto = contents_and_writeto()
-#         x = decode_and_parse(contents)
-
-
-#         if writeto is sys.stdout:
-#             stuff = ASTHighlighter(TermColorFormat(not options.nolines)).highlight(x)
-#             print(stuff)
-
-#         else:
-#             html = codehl.ASTHighlighter(HTMLFormat(True, False)).highlight(x)
-#             style = """
-
-#             .operator {color: blue}
-#             .identifier {color: black}
-#             .numeral {color: magenta}
-#             .string {color: red}
-#             .string_vi {color: magenta}
-#             .sequence {color: black; font-weight: bold}
-#             .macro {color: black; font-weight: bold}
-#             .macro_operator {color: black; font-weight: bold}
-#             .definition {color: green; font-weight: bold}
-#             .symbol {color: brown}
-
-#             .default {color: grey; font-style: italic}
-
-#             """
-
-#             print("""
-#             <html>
-#             <head>
-#               <title>Woohoo!!!</title>
-#               <style type="text/css">
-#               %(basic_html_style)s
-#               %(style)s
-#               </style>
-#             </head>
-#             <body>
-#             %(html)s
-#             </body>
-#             </html>
-#             """ % locals(), file = writeto)
-#     else:
-#         print("Unknown command: %s\nOptions are: encode (en), decode (de), highlight (hl)" % command, file = sys.stderr)

@@ -38,7 +38,7 @@ class UniqueVar:
 ###########
 
 def build_fcall(obj, *args):
-    return hs2.send(obj, hs2.tuple(*args))
+    return hs2.send(obj, hs2.seq(*args))
 
 def build_scall(obj, *args):
     if isinstance(obj, str):
@@ -206,7 +206,7 @@ def parse_sequence(compiler, seq):
                 instructions += [hs2.assign(rv, build_fcall(deconstructor, rhs)),
                                  build_scall(dict, 
                                              build_scall(zip,
-                                                         hs2.tuple(*vnames),
+                                                         hs2.seq(*vnames),
                                                          rv))]
                 expr = hs2.begin(*instructions)
                 dparts.append(compiler.xvisit(expr))
@@ -290,7 +290,7 @@ class Compiler(ASTVisitor):
             return hs.send(f, arg)
 
     def visit_oper(self, node, op, a, b):
-        return revisit(hs.juxt(op, hs2.tuple(a, b)))
+        return revisit(hs.juxt(op, hs2.seq(a, b)))
 
     def visit_begin(self, node, *args):
         newargs = accumulate_sequence(self, args, "begin")
@@ -319,15 +319,15 @@ class Compiler(ASTVisitor):
         t, d = parse_sequence(self, newargs)
         if t:
             if len(t) == 1 and isinstance(t[0], list):
-                t = hs2.tuple(*t[0])
+                t = hs2.seq(*t[0])
             else:
                 t = build_scall(lib.patch_tuple,
-                                *[hs2.tuple(*x) if isinstance(x, list) else x
+                                *[hs2.seq(*x) if isinstance(x, list) else x
                                   for x in t])
         if d:
             def mkdict(kvs):
                 return build_scall(dict,
-                                   hs2.tuple(*[hs2.tuple(x[0], x[1]) for x in kvs]))
+                                   hs2.seq(*[hs2.seq(x[0], x[1]) for x in kvs]))
             if len(d) == 1 and isinstance(d[0], list):
                 d = mkdict(d[0])
             else:
@@ -341,7 +341,7 @@ class Compiler(ASTVisitor):
         elif d:
             return d
         else:
-            return hs.tuple()
+            return hs.seq()
 
 
     def visit_curly(self, node, *args):
@@ -355,8 +355,8 @@ class Compiler(ASTVisitor):
         newbody = self.xvisit(body)
         return hs["lambda"](variables, newbody)
 
-    def visit_tuple(self, node, *args):
-        return hs.tuple(*map(self.xvisit, args))
+    def visit_seq(self, node, *args):
+        return hs.seq(*map(self.xvisit, args))
 
     def visit_if(self, node, cond, iftrue, iffalse):
         return hs["if"](self.xvisit(cond), self.xvisit(iftrue), self.xvisit(iffalse))
@@ -536,7 +536,7 @@ class ParseLHS(ASTVisitor):
         self.simple = False
         newargs = [self.visit(x, d = None) for x in args]
         if d is None:
-            return hs2.tuple(*newargs)
+            return hs2.seq(*newargs)
         else:
             return self.make_deconstruct(d, newargs)
 
@@ -678,8 +678,8 @@ class ASTRename(ASTVisitor):
 
         return hs.begin(*list(map(self.visit, stmts)))
 
-    def visit_tuple(self, node, *stmts):
-        return hs.tuple(*list(map(self.visit, stmts)))
+    def visit_seq(self, node, *stmts):
+        return hs.seq(*list(map(self.visit, stmts)))
 
     def visit_send(self, node, obj, msg):
         return hs.send(self.visit(obj), self.visit(msg))
@@ -699,8 +699,8 @@ class ASTRename(ASTVisitor):
             return hs.assign(v, self.visit(value))
         else:
             return hs.assign(v, hs2.send(hs.value(lib.check),
-                                         hs2.tuple(self.visit(handle),
-                                                   self.visit(value))))
+                                         hs2.seq(self.visit(handle),
+                                                 self.visit(value))))
 
     def visit_declaring(self, node, variables, body):
         variables, body = self.with_declarations(variables, body)

@@ -62,7 +62,7 @@ compr_matcher = patterns.matcher('compr', 'callcompr')
 def prefix_macro(name):
     def mac(f):
         def repl(self, node, args):
-            if isinstance(args, (hs.square, hs.tuple)):
+            if isinstance(args, (hs.square, hs.seq)):
                 orig = args
                 args = args[:]
                 if not args or len(args) > 2:
@@ -97,7 +97,7 @@ def prefix_macro(name):
 def infix_macro(name):
     def mac(f):
         def repl(self, node, args):
-            if isinstance(args, (hs.square, hs.tuple)):
+            if isinstance(args, (hs.square, hs.seq)):
                 orig = args
                 args = args[:]
                 if len(args) != 2:
@@ -154,7 +154,7 @@ def hash(self, node, args, arg):
 
 @prefix_macro("?")
 def index(self, node, args, arg):
-    return hs.send(hs.value(lib.index), hs2.tuple(arg))
+    return hs.send(hs.value(lib.index), hs2.seq(arg))
 
 @prefix_macro("!")
 def index(self, node, args, arg):
@@ -168,21 +168,21 @@ def index(self, node, args, arg):
 
 @macro("*")
 def star(self, node, args):
-    if isinstance(args, hs.tuple) and args[0] == hs.value(Void):
+    if isinstance(args, hs.seq) and args[0] == hs.value(Void):
         return hs.star(args[1])
     else:
         return hs.send(hs.processed("*"), args)
 
 @macro("**")
 def dstar(self, node, args):
-    if isinstance(args, hs.tuple) and args[0] == hs.value(Void):
+    if isinstance(args, hs.seq) and args[0] == hs.value(Void):
         return hs.dstar(args[1])
     else:
         return hs.send(hs.processed("**"), args)
 
 @macro("=>")
 def assoc(self, node, args):
-    if isinstance(args, hs.tuple):
+    if isinstance(args, hs.seq):
         return hs.assoc(args[0], args[1])
     else:
         raise wrong_use("=>", node)
@@ -388,7 +388,7 @@ def mac_lambda(self, node, args):
                 else:
                     guard = hs.value(None)
 
-                functions.append(hs2.tuple(dv,
+                functions.append(hs2.seq(dv,
                                            guard,
                                            hs2["lambda"](p.variables, #[v for v, t in p.variables],
                                                          body)))
@@ -477,7 +477,7 @@ def mac_if(self, node, args):
 
         return hs.restmacro(find_else)
 
-    elif isinstance(args, (hs.tuple, hs.square)):
+    elif isinstance(args, (hs.seq, hs.square)):
         args = list(args[:])
         if len(args) == 2:
             args.append(hs.value(None))
@@ -512,7 +512,7 @@ def class_(self, node, args):
         elif sup == hs.value(Void):
             sup = hs.square()
 
-        if not isinstance(sup, (hs.tuple, hs.square)):
+        if not isinstance(sup, (hs.seq, hs.square)):
             raise SyntaxError['bad_class'](
                 message = ("class must be called with the notation 'class [super...]: body'"),
                 node = node)
@@ -656,6 +656,35 @@ def shortvar(self, node, args):
     else:
         return __shortvar(self, node, args)
 
+
+@macro("break")
+def mac_break(self, node, args):
+    if args == hs.value(Void):
+        return hs.send(hs.value(lib.raiser),
+                       build_scall(lib.BreakException))
+    else:
+        return hs.send(hs.value(lib.raiser),
+                       build_scall(lib.BreakException, args))
+
+@macro("continue")
+def mac_continue(self, node, args):
+    if args == hs.value(Void):
+        return hs.send(hs.value(lib.raiser),
+                       build_scall(lib.ContinueException))
+    else:
+        return hs.send(hs.value(lib.raiser),
+                       build_scall(lib.ContinueException, args))
+
+@macro("while")
+def mac_while(self, node, args):
+    if isinstance(args, (hs.colonargs, hs.square)):
+        test, body = args[:]
+        return build_scall(lib.ugwhile,
+                           hs2["lambda"]([], test),
+                           hs2["lambda"]([], body))
+        # return build_scall(lib.ugwhile, hs.value(1), hs.value(2))
+    else:
+        raise SyntaxError['bad_while'](node = node)
 
 
 

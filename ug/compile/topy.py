@@ -99,7 +99,7 @@ class UGToPy(ASTVisitor):
                            "tag_location",
                            False)
                 node = hs.send(hs.value(lib.maytag),
-                               hs.tuple(copy,
+                               hs.seq(copy,
                                         hs.value("location"),
                                         hs.value(thetag)))
 
@@ -118,7 +118,7 @@ class UGToPy(ASTVisitor):
                            "set_name",
                            False)
                 node = hs.send(hs.value(lib.setattribute),
-                               hs.tuple(copy,
+                               hs.seq(copy,
                                         hs.value("__name__"),
                                         hs.value(name or "?")))
 
@@ -165,9 +165,9 @@ class UGToPy(ASTVisitor):
         r = hs.Name('%%' + str(value), hs.Load())
         return self.register(r, r, node)
 
-    def visit_tuple(self, node, *args, name = None):
+    def visit_seq(self, node, *args, name = None):
         newargs = [self.visit(arg, name) for arg in args]
-        c = hs.Call(transloc(hs.Name('%%tuple', hs.Load()), node),
+        c = hs.Call(transloc(hs.Name('%%list', hs.Load()), node),
                        newargs,
                        [],
                        None,
@@ -178,7 +178,7 @@ class UGToPy(ASTVisitor):
 
         if False and isinstance(obj, (hs.special, hs.value)) and obj in ops:
             spec = ops[obj]
-            if isinstance(msg, hs.tuple):
+            if isinstance(msg, hs.seq):
                 left, right = msg[:]
                 if left == hs.value(Void):
                     r = hs.UnaryOp(spec.unary(), self.visit(right, name))
@@ -193,7 +193,7 @@ class UGToPy(ASTVisitor):
                                            self.visit(right, name))
             else:
                 raise Exception("Sending to strange thing:", node)
-        elif isinstance(msg, hs.tuple):
+        elif isinstance(msg, hs.seq):
             r = hs.Call(self.visit(obj, name),
                            [self.visit(m, name) for m in msg[:]],
                            [],
@@ -263,7 +263,11 @@ class UGToPy(ASTVisitor):
         fn = r.create()
         self.values.update(r.values)
         self.register(fn, hs.Name(str(name), hs.Load()), node)
-        return self.visit(hs2.declaring([name], name), name)
+        temp = UniqueVar("temp")
+        return self.visit(hs2.declaring([name, temp],
+                                        hs2.begin(hs2.assign(temp, name),
+                                                  temp)),
+                          name)
 
     def visit_generic(self, node, name):
         raise Exception("Unknown node", node)

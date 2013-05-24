@@ -120,6 +120,7 @@ standard_matchers = [
     subtok_rule("a", rx_without("and", chr_id), ["infix", 0]),
     subtok_rule("o", rx_without("or", chr_id), ["infix", 0]),
     subtok_rule("i", rx_without("in", chr_id), ["infix", 0]),
+    subtok_rule("i", rx_without("is", chr_id), ["infix", 0]),
     subtok_rule("t", rx_without("to", chr_id), ["infix", 0]),
     subtok_rule("b", rx_without("by", chr_id), ["infix", 0]),
     subtok_rule("m", rx_without("mod", chr_id), ["infix", 0]),

@@ -50,7 +50,19 @@ def opaque_function(f):
     return library_function("%%" + f.__name__)(f)
 
 
+absent = object()
 
+@library_function
+class BreakException(Exception):
+    def __init__(self, value = absent):
+        if value is not absent:
+            self.value = value
+
+@library_function
+class ContinueException(Exception):
+    def __init__(self, value = absent):
+        if value is not absent:
+            self.value = value
 
 
 
@@ -97,7 +109,7 @@ def ugin(a, b):
 def _convert_formula(f):
     _SHOW_FRAME = False
 
-    if isinstance(f, tuple):
+    if isinstance(f, (tuple, list)):
         new = []
         i = 0
         ranges = [0, 0, None]
@@ -105,7 +117,7 @@ def _convert_formula(f):
 
         dstar = False
 
-        acceptable = (NoneType, str, tuple, hs.deconstruct, hs.check,
+        acceptable = (NoneType, str, tuple, list, hs.deconstruct, hs.check,
                       hs.star, hs.assoc, hs.dstar, hs.default,
                       hs.default_assoc)
 
@@ -133,26 +145,26 @@ def _convert_formula(f):
 
             if isinstance(entry, hs.star):
                 ban(hs.star, hs.default)
-                acceptable += (str, tuple, hs.deconstruct, hs.check)
+                acceptable += (str, tuple, list, hs.deconstruct, hs.check)
                 i = 2
                 ranges[i] = 0
                 new.append((entry[0], ))
             elif isinstance(entry, hs.assoc):
-                ban(hs.star, str, tuple, hs.deconstruct, hs.check)
+                ban(hs.star, str, tuple, list, hs.deconstruct, hs.check)
                 keys.append(entry[0])
                 new.append((entry[1], ))
             elif isinstance(entry, hs.default_assoc):
-                ban(hs.star, str, tuple, hs.deconstruct, hs.check)
+                ban(hs.star, str, tuple, list, hs.deconstruct, hs.check)
                 keys.append(entry[0])
                 new.append((entry[1], entry[2]))
             elif isinstance(entry, hs.dstar):
-                ban(hs.star, str, tuple, hs.deconstruct, hs.check,
+                ban(hs.star, str, tuple, list, hs.deconstruct, hs.check,
                     hs.assoc, hs.default_assoc, hs.dstar)
                 dstar = True
                 new.append((entry[0], ))
             elif isinstance(entry, hs.default):
                 subf, d = entry[:]
-                ban(str, tuple, hs.deconstruct, hs.check)
+                ban(str, tuple, list, hs.deconstruct, hs.check)
                 ranges[1] += 1
                 new.append((subf, d))
             else:
@@ -396,12 +408,13 @@ library_function(zip)
 library_function("Void")(Void)
 
 library_function("%%tuple")(lambda *args: args)
+library_function("%%list")(lambda *args: list(args))
 
 
 @library_function
 def send(obj, msg):
     _SHOW_FRAME = False
-    if isinstance(msg, tuple):
+    if isinstance(msg, (list, tuple)):
         return obj(*msg)
     elif isinstance(msg, dict):
         return obj(**msg)
@@ -426,6 +439,8 @@ def send(obj, msg):
         except AttributeError:
             if isinstance(msg, str):
                 return getattr(obj, msg)
+            else:
+                raise
         else:
             return f(msg)
 
@@ -435,7 +450,7 @@ def send_safeguard(obj, msg):
     try:
         return obj.__recv_safeguard__(msg)
     except AttributeError:
-        if isinstance(msg, tuple):
+        if isinstance(msg, (tuple, list)):
             return hs.ok(obj(*msg))
         elif isinstance(msg, dict):
             return hs.ok(obj(**msg))
@@ -450,9 +465,19 @@ def send_safeguard(obj, msg):
 
 @library_function("map")
 def ugmap(seq, obj):
-    # _SHOW_FRAME = False
+    _SHOW_FRAME = False
     for entry in seq:
-        result = send_safeguard(obj, entry)
+        try:
+            result = send_safeguard(obj, entry)
+        except BreakException as e:
+            if hasattr(e, "value"):
+                yield e.value
+            break
+        except ContinueException as e:
+            if hasattr(e, "value"):
+                yield e.value
+            continue
+
         if isinstance(result, hs.ok):
             yield result[0]
         elif isinstance(result, hs.guard_fail):
@@ -462,14 +487,45 @@ def ugmap(seq, obj):
 
 @library_function("each")
 def ugeach(seq, obj):
-    # _SHOW_FRAME = False
+    _SHOW_FRAME = False
     for entry in seq:
-        result = send_safeguard(obj, entry)
-        if isinstance(result, (hs.ok, hs.guard_fail)):
+        try:
+            result = send_safeguard(obj, entry)
+        except BreakException as e:
+            if hasattr(e, "value"):
+                result = e.value
+            else:
+                result = None
+            break
+        except ContinueException as e:
             continue
+
+        if isinstance(result, (hs.ok, hs.guard_fail)):
+            result = result[0]
         else:
             raise TypeError("Match failed", result[0])
+    return result
 
+
+@library_function("while")
+def ugwhile(test, body):
+    _SHOW_FRAME = False
+    while test():
+        try:
+            result = body()
+        except BreakException as e:
+            if hasattr(e, "value"):
+                result = e.value
+            else:
+                result = None
+            break
+        except ContinueException as e:
+            if hasattr(e, "value"):
+                result = e.value
+            else:
+                result = None
+            continue
+    return result
 
 
 @library_function
@@ -492,6 +548,16 @@ def patch_tuple(*args):
         return tuple(args[0])
     else:
         return reduce(lambda x, y: tuple(x) + tuple(y), args)
+
+@library_function
+def patch_list(*args):
+    _SHOW_FRAME = False
+    if len(args) == 0:
+        return ()
+    elif len(args) == 1:
+        return list(args[0])
+    else:
+        return reduce(lambda x, y: list(x) + list(y), args)
 
 @library_function
 def assign(obj, item, value):
@@ -650,11 +716,19 @@ class ugtuple(tuple):
         super().__init__(t)
         self.__tags__ = {}
 
+class uglist(list):
+    def __init__(self, t):
+        _SHOW_FRAME = False
+        super().__init__(t)
+        self.__tags__ = {}
+
 @library_function
 def maytag(obj, name, value):
     _SHOW_FRAME = False
     if isinstance(obj, tuple):
         obj = ugtuple(obj)
+    elif isinstance(obj, list):
+        obj = uglist(obj)
     elif isinstance(obj, str):
         obj = ugstr(obj)
     elif isinstance(obj, FunctionType):
@@ -677,7 +751,7 @@ def make_class(bases, elements):
             deconstructor, guard, f = specs[0]
             formula = deconstructor.formula
             if (not guard
-                and isinstance(formula, tuple)
+                and isinstance(formula, (tuple, list))
                 and not [x for x in formula if not isinstance(x, str)]):
                 f.__name__ = k
                 d[k] = f

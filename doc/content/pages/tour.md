@@ -623,6 +623,53 @@ calculator example seen earlier can be rewritten without `match`:
         [_] -> raise TypeError["Unknown instruction", instruction]
 
 
+Classes
+=======
+
+There are two ways to define objects in UG. The first way is to simply
+define them as a closure:
+
+    :::ug
+    @class Point = [$, x, y] ->
+        ;; lala
+        prop["x", action] ->
+          match action:
+            .get -> x
+            .set -> x := value
+            .del -> x := None
+
+        ;; Getters
+        "x" -> x
+        "y" -> y
+
+        ;; Setters
+        #assign["x", value] -> x := value
+        #assign["y", value] -> y := value
+
+        ;; Methods
+        "add" -> [other] ->
+            Point[x + other.x, y + other.y]
+
+        "__str__" -> [] ->
+            "Point[%s, %s]" mod [x, y]
+
+    p1 = Point[1, 2]
+    p2 = Point[3, 4]
+    p1.x := 11
+    print[p1.x + p2.y]  ;; 15
+    print[p1.add[p2]]   ;; Point[14, 6]
+
+
+    @class Point = [$, x, y] ->
+        .x -> x
+        .y -> y
+        <- {=}
+
+
+For those familiar with Python, 
+
+
+
 
 Exceptions
 ==========

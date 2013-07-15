@@ -50,18 +50,21 @@ def pretty_rules():
         rules.css_border_bottom(".{+#send}" + " > * > " + cls, "2px solid " + color)
         rules.css_margin(cls, "6px")
 
+    def rearrange_oper(classes, children):
+        op = children[0]
+        results = [children[1]]
+        for child in children[2:]:
+            results += [[{"operator"}, op], child]
+        return results
+
     rules.css_color(".operator", "#ff8")
-    rules.rearrange(".{+#oper}",
-                    lambda classes, children:
-                        [children[1],
-                         [{"operator"}, children[0]],
-                         children[2]])
+    rules.rearrange(".{+#oper}", rearrange_oper)
 
     # Boxes
     for cls, color in [(".{+#square}", "#f80"),
                        (".{+#curly}", "#0a0"),
                        (".{+#begin}", "#08f"),
-                       (".{+#tuple}", "#f80")]:
+                       (".{+#seq}", "#f80")]:
 
         rules.builder_for(cls) \
             .mclasses("object") \

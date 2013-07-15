@@ -29,6 +29,15 @@ DEFAULT_PAGINATION = 10
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
 
+
+# from markdown.extensions.codehilite import CodeHiliteExtension
+from codehilite import CodeHiliteExtension
+from fenced_code import FencedCodeExtension
+
+
 MD_EXTENSIONS = ['toc',
                  'codehilite(css_class=highlight)',
+                 # CodeHiliteExtension([['css_class', 'highlight']]),
+                 FencedCodeExtension(),
                  'extra']
+

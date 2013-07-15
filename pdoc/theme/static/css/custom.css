@@ -1,0 +1,57 @@
+
+
+.symbols td {
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+
+.symname {
+    background-color: #f0f8ff
+}
+
+/* .lt { */
+/*     color: #aa0000 */
+/* } */
+
+.decoded {
+    background-color: #e0f0ff
+}
+
+.encoded {
+    background-color: #d0e0f0
+}
+
+
+.small {
+    font-size: 80%;
+}
+
+
+.nothing:before {
+    color: #888888;
+    content: "n/a"
+}
+
+.conversions td {
+    padding: 1px;
+}
+
+.conversions .highlight code {
+    background-color: #e8e8ff;
+}
+
+.conversions td:nth-child(2), .conversions td:nth-child(3)
+{
+    background-color: #e8e8ff;
+    border: 2px solid white
+}
+
+/* .conversions td:first-child { */
+/*     border-right: 1px solid #666 */
+/* } */
+
+/* .conversions tr:first-child td:nth-child(2), .conversions tr:first-child td:nth-child(3) */
+/* { */
+/*     border-top: none */
+/* } */
+

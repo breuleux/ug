@@ -64,6 +64,7 @@ def pretty_rules():
     for cls, color in [(".{+#square}", "#f80"),
                        (".{+#curly}", "#0a0"),
                        (".{+#begin}", "#08f"),
+
                        (".{+#seq}", "#f80")]:
 
         rules.builder_for(cls) \

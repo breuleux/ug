@@ -8,6 +8,7 @@ inrange = [low, high] ->
             raise TypeError["Not in range"]
 
 
+
 myobj =
 
     ;; Direct reception of integers

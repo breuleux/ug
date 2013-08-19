@@ -314,6 +314,7 @@ class Compiler(ASTVisitor):
         else:
             return stmts
 
+
     def visit_square(self, node, *args):
         newargs = accumulate_sequence(self, args, "square", False)
         t, d = parse_sequence(self, newargs)
@@ -343,10 +344,39 @@ class Compiler(ASTVisitor):
         else:
             return hs.seq()
 
-
     def visit_curly(self, node, *args):
-        newargs = accumulate_sequence(self, args, "curly")
-        return hs.curly(*newargs)
+        newargs = accumulate_sequence(self, args, "curly", False)
+        t, d = parse_sequence(self, newargs)
+        if t:
+            if len(t) == 1 and isinstance(t[0], list):
+                t = build_scall(set, hs2.seq(*t[0]))
+            else:
+                t = build_scall(lib.patch_set,
+                                *[hs2.seq(*x) if isinstance(x, list) else x
+                                  for x in t])
+        if d:
+            def mkdict(kvs):
+                return build_scall(dict,
+                                   hs2.seq(*[hs2.seq(x[0], x[1]) for x in kvs]))
+            if len(d) == 1 and isinstance(d[0], list):
+                d = mkdict(d[0])
+            else:
+                d = build_scall(lib.patch_dict,
+                                *[mkdict(x) if isinstance(x, list) else x
+                                  for x in d])
+        if t and d:
+            return build_scall(lib.hybrid, t, d)
+        elif t:
+            return t
+        elif d:
+            return d
+        else:
+            return build_scall(set)
+
+
+    # def visit_curly(self, node, *args):
+    #     newargs = accumulate_sequence(self, args, "curly")
+    #     return hs.curly(*newargs)
 
     def visit_send(self, node, obj, msg):
         return hs.send(self.xvisit(obj), self.xvisit(msg))

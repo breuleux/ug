@@ -245,5 +245,3 @@ Control structures
 .cmptable ..
   {make_table(cs_table)}
 
-
-

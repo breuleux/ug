@@ -879,5 +879,25 @@ class Frz(ugobj):
         else:
             return message.__frz__()
 
+class Mut(ugobj):
+    def __recv_safeguard__(self, message):
+        return hs.ok(self.__recv__(message))
+    def __recv__(self, message):
+        _SHOW_FRAME = False
+        # print(message)
+        if isinstance(message, tuple):
+            return list(message)
+        elif isinstance(message, frozenset):
+            return set(message)
+        elif isinstance(message, frozenOrderedDict):
+            return OrderedDict(message)
+        elif isinstance(message, frozendict):
+            return dict(message)
+        elif isinstance(message, (list, set, dict, OrderedDict)):
+            return message
+        else:
+            return message.__mut__()
+
 library_function("frz")(Frz())
+library_function("mut")(Mut())
 

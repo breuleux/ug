@@ -61,6 +61,12 @@ class struct(metaclass = structmc):
         self.__extendable__ = __extendable__
         self.__tags__ = attrdict()
 
+    def __mut__(self):
+        return type(self)(*self.__l__,
+                           __mutable__ = True,
+                           __extendable__ = True,
+                           **self.__d__)
+
     def __frz__(self):
         return type(self)(*self.__l__,
                            __mutable__ = False,

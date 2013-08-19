@@ -54,18 +54,31 @@ class struct(metaclass = structmc):
 
     __slots__ = ['__l__', '__d__', '__mutable__', '__extendable__', '__tags__']
 
-    def __init__(self, *args, __mutable__ = False, __extendable__ = False, **kwargs):
+    def __init__(self, *args, __mutable__ = True, __extendable__ = True, **kwargs):
         self.__l__ = list(args) if __mutable__ or __extendable__ else args
         self.__d__ = kwargs
         self.__mutable__ = __mutable__
         self.__extendable__ = __extendable__
         self.__tags__ = attrdict()
 
+    def __frz__(self):
+        return type(self)(*self.__l__,
+                           __mutable__ = False,
+                           __extendable__ = False,
+                           **self.__d__)
+
     def __recv__(self, message):
         if isinstance(message, str):
             return getattr(self, message)
         elif isinstance(message, index):
             return self[message.item]
+        elif isinstance(message, hashstruct.assign):
+            m, v = message[:]
+            if isinstance(m, index):
+                m = m.item
+            elif not isinstance(m, str):
+                raise Exception("%s does not acknowledge message %s" % (self, message))
+            self[m] = v
         else:
             raise Exception("%s does not acknowledge message %s" % (self, message))
 

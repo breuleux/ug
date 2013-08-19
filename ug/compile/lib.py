@@ -416,7 +416,7 @@ library_function("%%list")(lambda *args: list(args))
 
 @library_function
 def send(obj, msg):
-    # _SHOW_FRAME = False
+    _SHOW_FRAME = False
     try:
         f = type(obj).__recv__
     except AttributeError:
@@ -864,7 +864,8 @@ class Frz(ugobj):
     def __recv_safeguard__(self, message):
         return hs.ok(self.__recv__(message))
     def __recv__(self, message):
-        print(message)
+        _SHOW_FRAME = False
+        # print(message)
         if isinstance(message, list):
             return tuple(message)
         elif isinstance(message, set):
@@ -873,7 +874,7 @@ class Frz(ugobj):
             return frozenOrderedDict(message)
         elif isinstance(message, dict):
             return frozendict(message)
-        elif isinstance(message, (tuple, frozenset, frozendict)):
+        elif isinstance(message, (tuple, frozenset, frozendict, frozenOrderedDict)):
             return message
         else:
             return message.__frz__()

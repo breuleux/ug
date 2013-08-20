@@ -316,6 +316,9 @@ class Compiler(ASTVisitor):
 
 
     def visit_square(self, node, *args):
+        if len(args) == 1 and args[0] in ('=', '=>'):
+            return build_scall(lib.OrderedDict)
+
         newargs = accumulate_sequence(self, args, "square", False)
         t, d = parse_sequence(self, newargs)
         if t:
@@ -345,6 +348,9 @@ class Compiler(ASTVisitor):
             return hs.seq()
 
     def visit_curly(self, node, *args):
+        if len(args) == 1 and args[0] in ('=', '=>'):
+            return build_scall(dict)
+
         newargs = accumulate_sequence(self, args, "curly", False)
         t, d = parse_sequence(self, newargs)
         if t:

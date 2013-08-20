@@ -1,4 +1,5 @@
 
+import itertools
 from collections import OrderedDict
 import operator
 from functools import reduce
@@ -495,6 +496,8 @@ def send_safeguard(obj, msg):
     else:
         return f(msg)
 
+
+library_function("chain")(itertools.chain)
 
 @library_function("map")
 def ugmap(seq, obj):

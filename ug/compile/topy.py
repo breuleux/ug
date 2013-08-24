@@ -85,9 +85,12 @@ class UGToPy(ASTVisitor):
         for stmt, var in stmts:
             if stmt:
                 rval.append(stmt)
+            else:
+                rval.append(hs.Expr(var))
             last = var
         if builder is not None:
             rval.append(transloc(builder(last), last))
+        # print("ok", rval)
         return rval
 
     def visit(self, node, name):
@@ -289,6 +292,22 @@ class UGToPyModule(UGToPy):
 
 
 
+class UGToPyStatements(UGToPy):
+
+    def __init__(self):
+        self.declares = set()
+        self.assigns = set()
+        super().__init__(self)
+
+    def create(self):
+        statements, = self.blocks[:]
+        statements = self.finalize_statements(statements,
+                                              None,
+                                              lambda x: x)
+        return statements
+
+
+
 
 class UGToPyDef(UGToPy):
 
@@ -410,33 +429,72 @@ def convert_to_py_ast(ast):
 
 
 
-def evaluate(ast, source = None):
+# def evaluate(ast, source = None, d = None):
 
-    ctor = UGToPyDef("F")
+#     ctor = UGToPyDef("F")
 
+#     ctor.visit(ast, None)
+#     py = ctor.create()
+#     py = convert_to_py_ast(py)
+
+#     if isinstance(py, pyast.expr):
+#         py = pyast.Expression(py)
+#     elif isinstance(py, pyast.stmt):
+#         py = pyast.Module([py])
+
+
+#     order_monotonic([py])
+#     py = pyast.fix_missing_locations(py)
+#     # pr(py)
+
+
+#     code = compile(py, source and source.url or "<string>", 'exec')
+#     # code = compile(py, "<string>", 'exec')
+
+#     d = d or {}
+#     d.update(lib.ug_library)
+#     d.update(ctor.values)
+
+#     exec(code, d)
+#     return d['F']()
+
+
+def evaluate(ast, source = None, d = None):
+
+    ctor = UGToPyStatements()
     ctor.visit(ast, None)
-    py = ctor.create()
-    py = convert_to_py_ast(py)
 
-    if isinstance(py, pyast.expr):
-        py = pyast.Expression(py)
-    elif isinstance(py, pyast.stmt):
-        py = pyast.Module([py])
+    *spy, epy = ctor.create()
+    spy = convert_to_py_ast(hs.Module(spy))
+    epy = convert_to_py_ast(hs.Expression(epy))
+
+    # pprint(py)
+
+    # if isinstance(py, pyast.expr):
+    #     py = pyast.Expression(py)
+    # elif isinstance(py, pyast.stmt):
+    #     py = pyast.Module([py])
 
 
-    order_monotonic([py])
-    py = pyast.fix_missing_locations(py)
+    order_monotonic([spy, epy])
+    spy = pyast.fix_missing_locations(spy)
+    epy = pyast.fix_missing_locations(epy)
     # pr(py)
 
 
-    code = compile(py, source and source.url or "<string>", 'exec')
+    code1 = compile(spy, source and source.url or "<string>", 'exec')
+    code2 = compile(epy, source and source.url or "<string>", 'eval')
+
     # code = compile(py, "<string>", 'exec')
 
-    d = dict(lib.ug_library)
+    if d is None:
+        d = {}
+    d.update(lib.ug_library)
     d.update(ctor.values)
 
-    exec(code, d)
-    return d['F']()
+    exec(code1, d)
+    return eval(code2, d)
+    # return d['F']()
 
 
 def pprint(node, offset = 0):

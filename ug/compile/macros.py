@@ -628,6 +628,8 @@ class ParseImport(ASTVisitor):
 
 @macro("import")
 def import_(self, node, args):
+    if isinstance(args, hs.colonargs):
+        args = args[1]
     pi = ParseImport()
     spec, variables = pi.visit(args)
     if isinstance(spec, str):

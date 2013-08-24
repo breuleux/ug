@@ -651,8 +651,10 @@ class ParseLHS(ASTVisitor):
 
 class ASTRename(ASTVisitor):
 
-    def __init__(self, env = None):
+    def __init__(self, env = None, rename = True):
         self.env = env or []
+        self.depth = 0
+        self.rename = rename
         super().__init__()
 
     def push(self, variables):
@@ -693,6 +695,7 @@ class ASTRename(ASTVisitor):
                           node = node)
 
     def visit_begin(self, node, *stmts):
+        self.depth += 1
         changed = True
         while changed:
             changed = False
@@ -712,7 +715,9 @@ class ASTRename(ASTVisitor):
                 new_stmts.append(value)
             stmts = new_stmts
 
-        return hs.begin(*list(map(self.visit, stmts)))
+        rval = hs.begin(*list(map(self.visit, stmts)))
+        self.depth -= 1
+        return rval
 
     def visit_seq(self, node, *stmts):
         return hs.seq(*list(map(self.visit, stmts)))
@@ -744,7 +749,9 @@ class ASTRename(ASTVisitor):
 
     def with_declarations(self, variables, body):
         declarations = \
-            [(name, ((name if isinstance(name, UniqueVar) else transfer(UniqueVar(name), name)),
+            [(name, ((name if (isinstance(name, UniqueVar)
+                               or (self.depth == 0 and not self.rename))
+                      else transfer(UniqueVar(name), name)),
                      handler))
              for name, handler in variables]
         self.push(dict(declarations))

@@ -9,7 +9,7 @@ from ..parsing import Void, SyntaxError
 from ..parsing.ug.ast import transfer
 from ..lib import (hashstruct, anonstruct, attrdict,
                    struct,
-                   hybrid, index, hastag, index, tag, ugstr)
+                   hybrid, index, hastag, tag, ugstr)
 from ..tools import exc
 
 class UGTypeError(exc.RichException, TypeError):
@@ -258,7 +258,7 @@ def _deconstruct2(value, f):
 
         lt = len(t)
 
-        if lt < low or high and lt > high:
+        if lt < low or high is not None and lt > high:
             raise DeconstructError['wrong_length'](
                 expected = (low, high),
                 received = lt,
@@ -430,17 +430,22 @@ def send(obj, msg):
         elif isinstance(msg, str):
             return getattr(obj, msg)
         elif isinstance(msg, index):
+            if msg.item is to:
+                return obj[:]
             return obj[msg.item]
         elif isinstance(msg, hs.assign):
             m, v = msg[:]
             if isinstance(m, str):
                 return setattr(obj, m, v)
             elif isinstance(m, index):
-                obj[m.item] = v
+                if m.item is to:
+                    obj[:] = v
+                else:
+                    obj[m.item] = v
                 return None
             else:
                 return obj.__recv__(msg)
-        print(obj)
+        # print(obj)
         raise
     else:
         # print(f, obj)
@@ -524,6 +529,7 @@ def ugmap(seq, obj):
 @library_function("each")
 def ugeach(seq, obj):
     _SHOW_FRAME = False
+    result = None
     for entry in seq:
         try:
             result = send_safeguard(obj, entry)

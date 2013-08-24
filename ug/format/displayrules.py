@@ -125,5 +125,132 @@ def pretty_rules():
 
     return rules
 
+def hl_rules():
+    rules = RB()
 
-rules = minimal_rules() + pretty_rules()
+    for k, v in [('.value_int', '#88f'),
+                 ('.value_float', '#88f'),
+                 ('.value_str', '#f88'),
+                 ('.opname', '#8f8'),
+                 ('.comment', '#888'),
+                 ('.kw_True', '#0ff'),
+                 ('.kw_False', '#0ff'),
+                 ('.kw_None', '#0ff'),
+                 ('.{op_#} > .opname, .{op_#} > .ugstr', '#ff8'),
+                 ('.{op_.} > .opname, .{op_.} > .ugstr', '#eee'),
+                 ]:
+        rules.css_color(k, v)
+
+    rules.rule("span", {"display": "inline", "vertical-align": "none"})
+    rules.rule(".src", {"white-space": "pre"})
+
+    # rules.css_border_bottom(".{op_->} > :first-child", "1px solid #888")
+
+    rules.pclasses(".{leftof_->}", "decl")
+    rules.pclasses(".{leftof_=}", "decl")
+    rules.pclasses(".{leftof_when}", "decl")
+
+    def notlast(classes, parts):
+        rval = {"juxtnn"} if "juxtn" not in classes else set()
+        return rval
+    rules.pclasses(".juxt > *", notlast)
+
+    # variable declaration
+    paths = [".decl.ugstr",
+             ".decl.square > .ugstr",
+             ".decl > .juxtn.ugstr",
+             ".decl > .juxtn.square > .ugstr",
+             ".decl > .{rightof_=>}.ugstr",
+             ".decl > .{rightof_**}.ugstr",
+             ".decl > .{rightof_*}.ugstr",
+             ".decl > .{leftof_=}.ugstr",
+             ".decl :not(.rightof_when) .juxtn.ugstr",
+             ".decl :not(.rightof_when) .juxtn.square > .ugstr",
+             ".decl :not(.rightof_when) .{rightof_=>}.ugstr",
+             ".decl :not(.rightof_when) .{rightof_**}.ugstr",
+             ".decl :not(.rightof_when) .{rightof_*}.ugstr",
+             ".decl :not(.rightof_when) .{leftof_=}.ugstr"
+             ]
+    for path in paths:
+        rules.rule(path, {'color': "#f80"})
+
+    # variable type declaration
+    paths = [".decl > .juxtnn .juxtn.square > .ugstr",
+             ".decl > .juxtnn",
+             ".decl > .{op_#} > .opname",
+             ".decl > .{op_#} > .ugstr",
+             ".decl :not(.rightof_when) .juxtnn .juxtn.square > .ugstr",
+             ".decl :not(.rightof_when) .juxtnn",
+             ".decl :not(.rightof_when) .{op_#} > .opname",
+             ".decl :not(.rightof_when) .{op_#} > .ugstr"
+             ]
+    for path in paths:
+        rules.rule(path, {'color': "#0a8"})
+
+    # leftmost of :
+    paths = [".{leftof_:} .juxt0",
+             ".{leftof_:}.ugstr",
+             ".opname_each",
+             ".opname_map",
+             ".kw_break.ugstr",
+             ".kw_continue.ugstr",
+             ".kw_finally.ugstr",
+             ".kw_success.ugstr"]
+    for path in paths:
+        rules.rule(path, {'color': "#f8f",
+                          'font-weight': 'bold'})
+
+    # leftmost of :
+    paths = []
+    for path in paths:
+        rules.rule(path, {'color': "#f8f",
+                          'font-weight': 'bold'})
+    
+
+
+    # rules.css_color(".decl .juxtnn.ugstr", "green")
+
+    # rules.css_color(".decl .square .ugstr", "red")
+    # rules.css_color(".decl .juxtnn .square .ugstr", "green")
+
+
+
+    # rules.pclasses(".decl", "spring")
+    # rules.pclasses(".spring > .juxtn", "spring")
+    # rules.pclasses(".spring > .square > *", "spring")
+
+
+    # rules.pclasses(".decl > .square", "sqcoco")
+    # rules.pclasses(".sqcoco > ", "coco")
+    # rules.pclasses(".coco > .juxtn", "coco")
+
+    # rules.css_color(".spring.ugstr", "red")
+
+
+    # rules.css_color(".decl .juxtn.square > .ugstr", "red")
+    # rules.css_color(".decl.square > .ugstr", "red")
+    # rules.css_color(".decl .ugstr", "green")
+
+    # rules.css_color(".{leftof_->} .square > .ugstr", "green")
+
+    # path = ".decl > :first-child.juxt"
+    # path = path + ", " + path.replace(".juxt", " .juxt")
+    # rules.css_color(path, "#fa8")
+
+    # # path = ".decl > :first-child.juxt .ugstr"
+    # # path = path + ", " + path.replace(".juxt", " .juxt")
+    # # rules.css_color(path, "#fa8")
+
+    # path = ".decl > :first-child.juxt > :last-child"
+    # path = path + ", " + path.replace(".juxt", " .juxt")
+    # rules.css_color(path, "#0a8")
+
+    # path = ".decl > :first-child .square > .ugstr, .decl > :first-child.ugstr"
+    # rules.css_color(path, "#0a8")
+
+    return rules
+
+
+ast_rules = minimal_rules() + pretty_rules()
+hl_rules = hl_rules()
+

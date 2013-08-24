@@ -3,7 +3,7 @@
 """Unholy Grail.
 
 Usage:
-  ug (en|encode|de|decode|tok|ast|ir|eval|test) [FILE | -s STR]
+  ug (en|encode|de|decode|tok|ast|hl|ir|i|it|eval|test) [FILE | -s STR]
 
 Arguments:
   FILE          Source file.
@@ -28,7 +28,7 @@ from ug.lib import hashstruct as hs, struct, hastag, gettag
 from ug.parsing.ug.tokenizer import tokenizer
 from ug.compile.topy import evaluate
 from ug.format import errors
-from ug.format.displayrules import ugdescr, rules
+from ug.format.displayrules import ugdescr, ast_rules, hl_rules
 
 
 def descr2(x, recurse = None):
@@ -96,7 +96,7 @@ def x_tok(s, path):
     rules = RB()
     rules.hide(".source_header")
     rules.mclasses(".table > * > .{@str}", {"scalar", "@str"})
-    pr = boxy_terminus(rules = rules)
+    pr = boxy_terminus(rules = ast_rules)
     things = []
     for entry in tokenizer(Source(s, url = path)):
         things.append([str(entry), Group([entry.loc])])
@@ -106,7 +106,15 @@ def x_tok(s, path):
 def x_ast(s, path):
     result = parse(Source(s, url = path))
     pr = boxy_terminus()
-    pr((result), rules = rules, descr = ugdescr)
+    pr((result), rules = ast_rules, descr = ugdescr)
+
+@needs_source
+def x_hl(s, path):
+    from ug.format.highlight import highlight
+    ast = parse(Source(s, url = path))
+    pr = boxy_terminus()
+    pr(highlight(ast), rules = hl_rules)
+    # pr((result), rules = rules, descr = ugdescr)
 
 @needs_source
 def x_ir(s, path):
@@ -114,7 +122,7 @@ def x_ir(s, path):
     result = compile(ast)
     pr = boxy_terminus()
     rules.css_border(".{!located}", "4px solid red")
-    pr(result, rules = rules, descr = ugdescr)
+    pr(result, rules = ast_rules, descr = ugdescr)
 
 @needs_source
 def x_eval(s, path):
@@ -123,12 +131,66 @@ def x_eval(s, path):
     ast2 = compile(ast)
     print(evaluate(ast2, source = src))
 
+def x_i(args):
+    import readline
+    env = {}
+    print("Unholy Grail 0.0")
+    while 1:
+        try:
+            command = input("<> ")
+        except EOFError:
+            print()
+            break
+        if not command:
+            continue
+        src = Source(command, url = "<string>")
+        ast = parse(src)
+        ast2 = compile(ast, False)
+        try:
+            result = evaluate(ast2, source = src, d = env)
+            if result is not None:
+                print(result)
+        except Exception as e:
+            print("!!!", e)
+        for k, v in env.items():
+            if v == 1234:
+                print(k, v)
+
+def x_it(args):
+    pass
+    # import readline
+    # env = {}
+    # pr = boxy_terminus(rules = rules)
+    # pr("Unholy Grail 0.0")
+    # while 1:
+    #     try:
+    #         command = input("<> ")
+    #     except EOFError:
+    #         print()
+    #         break
+    #     if not command:
+    #         continue
+    #     src = Source(command, url = "<string>")
+    #     ast = parse(src)
+    #     ast2 = compile(ast, False)
+    #     try:
+    #         result = evaluate(ast2, source = src, d = env)
+    #         if result is not None:
+    #             pr(result)
+    #     except Exception as e:
+    #         print("!!!", e)
+    #     for k, v in env.items():
+    #         if v == 1234:
+    #             print(k, v)
+
+
+
 
 if __name__ == '__main__':
     args = docopt(__doc__)
 
     with prerror() as p:
-        for possibility in "en encode de decode tok ast ir eval".split():
+        for possibility in "en encode de decode tok ast hl ir eval i it test".split():
             if args[possibility]:
                 globals()["x_"+possibility](args)
                 break

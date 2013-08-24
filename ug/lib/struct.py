@@ -52,6 +52,8 @@ class structmc(type):
 
 class struct(metaclass = structmc):
 
+    __prefix__ = '?'
+    __name__ = '?'
     __slots__ = ['__l__', '__d__', '__mutable__', '__extendable__', '__tags__']
 
     def __init__(self, *args, __mutable__ = True, __extendable__ = True, **kwargs):

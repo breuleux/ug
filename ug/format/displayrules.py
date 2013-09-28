@@ -190,8 +190,12 @@ def hl_rules():
     # leftmost of :
     paths = [".{leftof_:} .juxt0",
              ".{leftof_:}.ugstr",
+             ".opname_and",
+             ".opname_or",
+             ".opname_not",
              ".opname_each",
              ".opname_map",
+             ".opname_when",
              ".kw_break.ugstr",
              ".kw_continue.ugstr",
              ".kw_finally.ugstr",

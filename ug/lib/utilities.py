@@ -14,9 +14,10 @@ class attrdict(dict):
         self[attr] = value
 
 class ugstr(str):
+    def __new__(cls, *args):
+        return str.__new__(cls, *args)
     def __init__(self, *args):
         self.__tags__ = attrdict()
-        super().__init__(*args)
     def tag(self, attr, value):
         tag(self, attr, value)
         return self

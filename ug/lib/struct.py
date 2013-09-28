@@ -120,16 +120,16 @@ class struct(metaclass = structmc):
                 if k in self.__d__ or self.__extendable__:
                     self.__d__[k] = v
                 else:
-                    raise Exception("Field not in structure.")
+                    raise KeyError("Field not in structure.")
         else:
-            raise Exception("Not mutable.")
+            raise TypeError("Not mutable.")
 
     # def __len__(self):
     #     return len(self.__l__)
 
     def __hash__(self):
         if self.__mutable__ or self.__extendable__:
-            raise Exception("not hashable")
+            raise TypeError("not hashable")
         else:
             r = hash(self.__name__)
             for entry in self.__l__:

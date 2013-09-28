@@ -149,12 +149,12 @@ def x_i(args):
         try:
             result = evaluate(ast2, source = src, d = env)
             if result is not None:
-                print(result)
+                print(repr(result))
         except Exception as e:
             print("!!!", e)
-        for k, v in env.items():
-            if v == 1234:
-                print(k, v)
+        # for k, v in env.items():
+        #     if v == 1234:
+        #         print(k, v)
 
 def x_it(args):
     pass

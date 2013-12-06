@@ -188,7 +188,7 @@ def hl_rules():
         rules.rule(path, {'color': "#0a8"})
 
     # leftmost of :
-    paths = [".{leftof_:} .juxt0",
+    paths = [".{leftof_:} > .juxt0",
              ".{leftof_:}.ugstr",
              ".opname_and",
              ".opname_or",

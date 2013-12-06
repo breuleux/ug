@@ -15,7 +15,8 @@ def build_op_groups():
         OperatorGroup("sjuxt", "XWY"),
         OperatorGroup("wjuxt", "X W Y"),
 
-        OperatorGroup("pfx", "._Y", "#_Y", "?_Y", "$_Y"),
+        OperatorGroup("pfx", "._Y", "#_Y", "?_Y"), #, "$_Y"),
+        OperatorGroup("pfx2", "^_Y", "^=_Y"),
         OperatorGroup("deco", "@_Y"),
 
         OperatorGroup("add", "X_+_Y", "X_-_Y"),
@@ -23,10 +24,12 @@ def build_op_groups():
         OperatorGroup("unary", "+_Y", "-_Y", "~_Y"),
         OperatorGroup("pow", "X_**_Y"),
 
+        OperatorGroup("pair", "X_::_Y"),
+
         OperatorGroup("range", "X_.._Y", "X_..", ".._Y", "X_to_Y"),
         OperatorGroup("by", "X_by_Y"),
         OperatorGroup("in", "X_in_Y"),
-        OperatorGroup("map", "X_map_Y", "X_each_Y"),
+        OperatorGroup("map", "X_map_Y", "X_each_Y", "X_gen_Y"),
 
         OperatorGroup("binor", "X_|_Y"),
         OperatorGroup("binxor", "X_^_Y"),
@@ -62,14 +65,15 @@ def build_op_matrix():
     op_matrix = OperatorMatrix(op_groups.gnames)
 
     op_matrix.left_assoc("sjuxt", "wjuxt", "add", "mul", "binor", "binxor", "binand", "cmp", "and", "or", "seq", "nl", "map")
-    op_matrix.right_assoc("pow", "lbda", "decl", "colon")
+    op_matrix.right_assoc("pow", "lbda", "decl", "colon", "pair")
 
     # major
     op_matrix.order("pfx", "sjuxt", "wjuxt", "assoc", "decl", "cond", "bang", "nl", "seq")
+    op_matrix.order("sjuxt", "pair", "assoc")
     op_matrix.order("sjuxt", "custom", "assoc")
     op_matrix.order("seq", "open")
     op_matrix.order("seq", "close")
-    op_matrix.order("sjuxt", "pow", "unary", "mul", "add",
+    op_matrix.order("sjuxt", "pfx2", "pow", "unary", "mul", "add",
                     "range", "in",
                     "binand", "binxor", "binor", "cmp",
                     "assoc")
@@ -94,6 +98,9 @@ def build_op_matrix():
     op_matrix.left_order("cond", "assoc")
     op_matrix.left_order("assoc", "cond")
 
+    op_matrix.right_order("map", "wjuxt")
+    op_matrix.right_order("wjuxt", "map")
+
     op_matrix.left_order("lbda", "assoc")
     op_matrix.right_order("lbda", "assoc")
     op_matrix.left_order("lbda", "decl")
@@ -107,7 +114,8 @@ def build_op_matrix():
         op_matrix.right_order(g, "colon")
         op_matrix.right_order(g, "lbda")
 
-    op_matrix.order("lbda", "map")
+    op_matrix.right_order("lbda", "map")
+    op_matrix.right_order("map", "lbda")
 
     op_matrix.set_relation("open", "close", BracketMerge({
                 "()": Bracket('round'),

@@ -138,6 +138,12 @@ def wrong_use(mac, node):
         node = node)
 
 
+
+
+@macro("quote")
+def dot(self, node, arg):
+    return hs.value(arg)
+
 @prefix_macro(".")
 def dot(self, node, args, arg):
     return hs.value(arg)
@@ -148,13 +154,13 @@ def dot(self, node, args, arg):
 
 @prefix_macro("#")
 def hash(self, node, args, arg):
-    if isinstance(arg, ugstr):
-        arg = hs2.value(arg)
+    if isinstance(arg, (str, ugstr)):
+        arg = build_scall(lib.symbol, hs2.value(arg))
     return hs.send(hs.value(lib.hashstruct), arg)
 
 @prefix_macro("?")
 def index(self, node, args, arg):
-    return hs.send(hs.value(lib.index), hs2.seq(arg))
+    return hs.send(hs.value(hs.index), hs2.seq(arg))
 
 @prefix_macro("!")
 def index(self, node, args, arg):
@@ -208,7 +214,7 @@ class ParseLHSAssign(ParseLHS):
         node = self.compiler.visit(node)
         if isinstance(node, hs.send):
             self.register_variable(node, None)
-            return hs.value("_")
+            return build_scall(lib.symbol, hs.value("_"))
         else:
             raise wrong(node,
                         "The evaluation of this expression did not yield a #send node.")
@@ -217,7 +223,7 @@ class ParseLHSAssign(ParseLHS):
         node = self.compiler.visit(node)
         if isinstance(node, hs.send):
             self.register_variable(node, None)
-            return hs.value("_")
+            return build_scall(lib.symbol, hs.value("_"))
         else:
             raise wrong(node,
                         "The evaluation of this expression did not yield a #send node.")
@@ -234,14 +240,15 @@ def assign(self, node, args):
                     hs2.assign(rv, build_fcall(p.deconstructor, rhs))]
 
     for i, (v, handler) in enumerate(p.variables):
-        value = hs.send(rv, build_scall(lib.index, hs.value(i)))
+        value = hs.send(rv, build_scall(hs.index, hs.value(i)))
         if isinstance(v, hs.send):
             target, message = v[:]
             target = hs.processed(target)
             message = hs.processed(message)
             instr = hs2.send(target,
                              build_fcall(hs.send(hs.value(lib.hashstruct),
-                                                 hs.value("assign")),
+                                                 build_scall(lib.symbol,
+                                                             hs.value("assign"))),
                                          message,
                                          value))
         else:
@@ -343,6 +350,11 @@ def colon(self, node, args):
 @macro("->")
 def mac_lambda(self, node, args):
     lhs, rhs = args[:]
+
+    if lhs == hs.value(Void):
+        return build_scall(lib.delay,
+                           hs2["lambda"]([], rhs))
+
     dispatch = apply_patterns(compr_matcher, lhs)
 
     if isinstance(dispatch, hs.compr):
@@ -688,6 +700,76 @@ def mac_while(self, node, args):
     else:
         raise SyntaxError['bad_while'](node = node)
 
+
+@macro("escape")
+def mac_escape(self, node, args):
+    if isinstance(args, (hs.colonargs, hs.square)):
+        escapevar, body = args[:]
+        return build_scall(lib.escape,
+                           hs2["lambda"]([(escapevar[0], None)], body))
+
+@macro("let")
+def mac_let(self, node, args):
+    if isinstance(args, (hs.colonargs, hs.square)):
+        lets, body = args[:]
+        assignments = []
+        parameters = []
+        for defn in lets[0][:]:
+            oper, var, value = defn[:]
+            if isinstance(var, hs.oper) and var[0] == "@":
+                parameters.append(hs.square(var[2], value))
+            else:
+                assignments.append((var, value))
+
+        # print(assignments)
+        # print(parameters)
+
+        rval = hs.begin(
+            hs.splice(*[hs.declare(v, None) for (v, value) in assignments]),
+            hs.splice(*[hs.assign(v, value) for (v, value) in assignments]),
+            build_scall(lib.dynlet,
+                        hs.square(*parameters),
+                        hs["lambda"]([], body)))
+        return rval
+
+        # return hs.declaring([v for (v, _) in assignments],
+        #                     hs.begin(hs.begin(*[hs.assign(v, value)
+        #                                         for (v, value) in assignments]),
+        #                              body))
+
+
+
+@macro("require")
+def mac_require(self, node, args):
+    if isinstance(args, (hs.colonargs, hs.square)):
+        items = args[1][:]
+        if isinstance(items, str): items = [items]
+        return hs2.extra(hs.require(["begin"] + ['(require "%s.scm")' % x for x in items]))
+
+@macro("provide")
+def mac_provide(self, node, args):
+    if isinstance(args, (hs.colonargs, hs.square)):
+        items = args[1][:]
+        if isinstance(items, str): items = [items]
+        return hs2.extra(hs.provide(items))
+
+
+# @macro("cond")
+# def mac_cond(self, node, args):
+#     if isinstance(args, (hs.colonargs, hs.square)):
+#         _, instructions = args[:]
+#         if not isinstance(instructions, hs.begin):
+#             instructions = [instructions]
+#         else:
+#             instructions = instructions[:]
+
+#         for instr in instructions:
+#             x, y = instr[:]
+
+#         return hs2["if"]
+
+#         return build_scall(lib.escape,
+#                            hs2["lambda"]([(escapevar[0], None)], body))
 
 
 

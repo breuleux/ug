@@ -143,7 +143,7 @@ def accumulate_sequence(compiler, entries, type, expand_eqassoc = True):
                                  hs2.assign(rv, build_fcall(p.deconstructor, rhs))]
 
                 for i, (variable, handler) in enumerate(p.variables):
-                    entry = hs2.send(rv, build_scall(lib.index, hs.value(i)))
+                    entry = hs2.send(rv, build_scall(hs.index, hs.value(i)))
                     instructions += \
                         [hs2.declare(variable, handler),
                          hs2.assign(variable, entry)]
@@ -169,13 +169,48 @@ def parse_sequence(compiler, seq):
     lparts = [[]]
     dparts = [[]]
 
+    holes = False
+    holen = 0
+
+    def gethole(x, star = ""):
+        nonlocal holes, holen
+        if not isinstance(x, str):
+            return False
+        elif x == "_":
+            holen += 1
+            holes = True
+            return build_scall(lib.Hole, hs.value(holen - 1), hs.value(star))
+        elif x.startswith("_"):
+            if holen:
+                raise Exception
+            else:
+                holes = True
+                x = x[1:]
+                if x.isdigit():
+                    return build_scall(lib.Hole, hs.value(int(x)), hs.value(star))
+                else:
+                    return build_scall(lib.Hole, hs.value(x), hs.value(star))
+        return False
+        
+
     for arg in seq:
-        if isinstance(arg, hs.star):
-            lparts.append(compiler.xvisit(arg[0]))
-            lparts.append([])
+        if isinstance(arg, str) and arg.startswith("_"):
+            hole = gethole(arg)
+            lparts[-1].append(hole)
+        elif isinstance(arg, hs.star):
+            hole = gethole(arg[0], "*")
+            if hole:
+                lparts[-1].append(hole)
+            else:
+                lparts.append(compiler.xvisit(arg[0]))
+                lparts.append([])
         elif isinstance(arg, hs.dstar):
-            dparts.append(compiler.xvisit(arg[0]))
-            dparts.append([])
+            hole = gethole(arg[0], "**")
+            if hole:
+                lparts[-1].append(hole)
+            else:
+                dparts.append(compiler.xvisit(arg[0]))
+                dparts.append([])
         elif isinstance(arg, hs.assoc):
             k = compiler.xvisit(arg[0])
             v = compiler.xvisit(arg[1])
@@ -185,10 +220,14 @@ def parse_sequence(compiler, seq):
 
             lhs, rhs = arg[:]
 
-            if isinstance(lhs, ugstr):
-                new_rhs = compiler.xvisit(rhs)
-                tag(new_rhs, "name", lhs)
-                dparts[-1].append((hs2.value(lhs), new_rhs))
+            if isinstance(lhs, (str, ugstr)):
+                hole = gethole(rhs, "")
+                if hole:
+                    dparts[-1].append((hs2.value(lhs), hole))
+                else:
+                    new_rhs = compiler.xvisit(rhs)
+                    tag(new_rhs, "name", lhs)
+                    dparts[-1].append((build_scall(lib.symbol, hs2.value(lhs)), new_rhs))
 
             else:
                 p = ParseLHS(lhs, allow_guard = False)
@@ -204,7 +243,7 @@ def parse_sequence(compiler, seq):
                     vnames.append(hs.value(v))
                 
                 instructions += [hs2.assign(rv, build_fcall(deconstructor, rhs)),
-                                 build_scall(dict, 
+                                 build_scall(dict,
                                              build_scall(zip,
                                                          hs2.seq(*vnames),
                                                          rv))]
@@ -215,7 +254,8 @@ def parse_sequence(compiler, seq):
         else:
             lparts[-1].append(arg)
 
-    return ([x for x in lparts if x],
+    return (holes,
+            [x for x in lparts if x],
             [x for x in dparts if x])
 
 
@@ -287,6 +327,10 @@ class Compiler(ASTVisitor):
             return revisit(f[0](self, node, arg))
         else:
             arg = self.xvisit(arg)
+            if isinstance(arg, hs.macro):
+                arg = arg[0](self, arg, hs.void())
+            elif isinstance(arg, hs.partial):
+                arg = build_scall(lib.Partial, arg[0])
             return hs.send(f, arg)
 
     def visit_oper(self, node, op, a, b):
@@ -320,7 +364,7 @@ class Compiler(ASTVisitor):
             return build_scall(lib.OrderedDict)
 
         newargs = accumulate_sequence(self, args, "square", False)
-        t, d = parse_sequence(self, newargs)
+        holen, t, d = parse_sequence(self, newargs)
         if t:
             if len(t) == 1 and isinstance(t[0], list):
                 t = hs2.seq(*t[0])
@@ -331,28 +375,35 @@ class Compiler(ASTVisitor):
         if d:
             def mkdict(kvs):
                 return build_scall(lib.OrderedDict,
-                                   hs2.seq(*[hs2.seq(x[0], x[1]) for x in kvs]))
+                                   # hs2.seq(*[hs2.seq(build_scall(lib.symbol, x[0]), x[1]) for x in kvs]))
+                                   hs2.seq(*[hs2.pair(x[0], x[1]) for x in kvs]))
             if len(d) == 1 and isinstance(d[0], list):
                 d = mkdict(d[0])
             else:
                 d = build_scall(lib.patch_odict,
                                 *[mkdict(x) if isinstance(x, list) else x
                                   for x in d])
+
         if t and d:
-            return build_scall(lib.hybrid, t, d)
+            rval = build_scall(lib.hybrid, t, d)
         elif t:
-            return t
+            rval = t
         elif d:
-            return d
+            rval = d
         else:
-            return hs.seq()
+            rval = hs.seq()
+
+        if holen:
+            return hs.partial(rval)
+        else:
+            return rval
 
     def visit_curly(self, node, *args):
         if len(args) == 1 and args[0] in ('=', '=>'):
             return build_scall(dict)
 
         newargs = accumulate_sequence(self, args, "curly", False)
-        t, d = parse_sequence(self, newargs)
+        holen, t, d = parse_sequence(self, newargs)
         if t:
             if len(t) == 1 and isinstance(t[0], list):
                 t = build_scall(set, hs2.seq(*t[0]))
@@ -363,7 +414,8 @@ class Compiler(ASTVisitor):
         if d:
             def mkdict(kvs):
                 return build_scall(dict,
-                                   hs2.seq(*[hs2.seq(x[0], x[1]) for x in kvs]))
+                                   # hs2.seq(*[hs2.seq(build_scall(lib.symbol, x[0]), x[1]) for x in kvs]))
+                                   hs2.seq(*[hs2.pair(x[0], x[1]) for x in kvs]))
             if len(d) == 1 and isinstance(d[0], list):
                 d = mkdict(d[0])
             else:
@@ -405,6 +457,9 @@ class Compiler(ASTVisitor):
 
     def visit_generic(self, node):
         raise Exception("Unknown node", node)
+
+    def visit_extra(self, node, x):
+        return node
 
 
 
@@ -521,16 +576,18 @@ class ParseLHS(ASTVisitor):
             else:
                 dv = None
             self.variables.append((node, dv))
-            return var, dv
+            return build_scall(lib.symbol, var), dv
 
     def hash(self, name):
         return hs.send(hs.value(lib.hashstruct), hs.value(name))
 
     def make_check(self, expr, variable):
-        return build_fcall(self.hash("check"), expr, variable)
+        return build_scall(lib.struct_project, expr, variable)
+        # return build_fcall(self.hash("check"), expr, variable)
 
     def make_deconstruct(self, expr, variables):
-        return build_fcall(self.hash("deconstruct"), expr, *variables)
+        return build_scall(lib.struct_deconstruct, expr, hs.seq(*variables))
+        # return build_fcall(self.hash("deconstruct"), expr, *variables)
 
     def visit_generic(self, node, d = None):
         raise SyntaxError['lhs/invalid'](
@@ -549,6 +606,17 @@ class ParseLHS(ASTVisitor):
         return self.visit_ugstr(node, d)
 
     def visit_value(self, node, value, d):
+        self.simple = False
+        if d is not None:
+            raise SyntaxError['lhs/checker'](
+                message = "You cannot give a type or wrapper to a literal left hand side.",
+                nodes = [node, d])
+        # if isinstance(node[0], str):
+        #     node = build_scall(lib.symbol, node)
+        expr = build_scall(lib.check_equal, node)
+        return self.make_check(expr, hs.value(None))
+
+    def visit_send(self, node, f, arg, d):
         self.simple = False
         if d is not None:
             raise SyntaxError['lhs/checker'](
@@ -580,12 +648,16 @@ class ParseLHS(ASTVisitor):
         was_simple = self.simple
         self.simple = False
 
-        if op == "=":
+        if op == "-" and x == hs.value(Void) and isinstance(y, hs.value):
+            return self.visit(hs.value(-y[0]), d = d)
+
+        elif op == "=":
             if d is not None:
                 raise SyntaxError['lhs/checker'](
                     message = "You cannot give a type or wrapper to a whole default expression (put it on the left hand side of = instead).",
                     nodes = [node, d])
-            return build_fcall(self.hash("default"), self.visit(x, d = d), y)
+            return build_scall(lib.struct_default, #self.hash("default"),
+                               self.visit(x, d = d), y)
 
         elif op == "when":
             if not was_simple:
@@ -607,14 +679,14 @@ class ParseLHS(ASTVisitor):
                 raise SyntaxError['lhs/star'](
                     message = "* must qualify a variable -- not an expression.",
                     node = y)
-            return build_fcall(self.hash("star"), self.visit(y, d = d))
+            return build_scall(lib.struct_star, self.visit(y, d = d))
 
         elif op == "**" and x == hs.value(Void):
             if not isinstance(y, ugstr):
                 raise SyntaxError['lhs/dstar'](
                     message = "** must qualify a variable -- not an expression.",
                     node = y)
-            return build_fcall(self.hash("dstar"), self.visit(y, d = None))
+            return build_scall(lib.struct_dstar, self.visit(y, d = None))
 
         elif op == "=>":
             if d is not None:
@@ -630,8 +702,9 @@ class ParseLHS(ASTVisitor):
                 raise SyntaxError['lhs/checker'](
                     message = "The left hand side of => must be a single variable and not an expression",
                     node = x)
-            return build_fcall(self.hash("assoc"),
-                               x if isinstance(x, hs.value) else hs2.value(x),
+            return build_scall(lib.struct_assoc, #self.hash("assoc"),
+                               build_scall(lib.symbol,
+                                           x if isinstance(x, hs.value) else hs2.value(x)),
                                self.visit(y, d = None))
 
         elif op == "." and x == hs.value(Void):
@@ -639,7 +712,8 @@ class ParseLHS(ASTVisitor):
                 raise SyntaxError['lhs/dot'](
                     message = "For the time being, it must be a plain variable on the right hand side of the dot and not an expression.",
                     node = y)
-            return self.visit(hs.value(y), d = d)
+            return self.visit(build_scall(lib.symbol, hs.value(y)), d = d)
+            # return self.visit(hs.value(y, "symbol"), d = d)
 
         else:
             raise SyntaxError['lhs/invalid'](
@@ -691,7 +765,7 @@ class ASTRename(ASTVisitor):
         return node
 
     def visit_macro(self, node, f):
-        raise SyntaxError(message = str(f),
+        raise SyntaxError(message = "macro in rename phase: {f}".format(f = f),
                           node = node)
 
     def visit_begin(self, node, *stmts):
@@ -721,6 +795,9 @@ class ASTRename(ASTVisitor):
 
     def visit_seq(self, node, *stmts):
         return hs.seq(*list(map(self.visit, stmts)))
+
+    def visit_pair(self, node, a, b):
+        return hs.pair(self.visit(a), self.visit(b))
 
     def visit_send(self, node, obj, msg):
         return hs.send(self.visit(obj), self.visit(msg))
@@ -759,5 +836,4 @@ class ASTRename(ASTVisitor):
                 self.visit(body))
         self.pop()
         return rval
-
 

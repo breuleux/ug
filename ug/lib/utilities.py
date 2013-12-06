@@ -33,5 +33,11 @@ def gettag(obj, attr):
         raise KeyError("No tag named '%s'" % attr, obj)
 
 def hastag(obj, attr):
-    return hasattr(obj, '__tags__') and attr in obj.__tags__
+    if hasattr(obj, '__tags__'):
+        try:
+            return attr in obj.__tags__
+        except TypeError:
+            return False
+    else:
+        return False
 

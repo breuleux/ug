@@ -3,7 +3,7 @@
 """Unholy Grail.
 
 Usage:
-  ug (en|encode|de|decode|tok|ast|hl|ir|i|it|eval|test) [FILE | -s STR]
+  ug (en|encode|de|decode|tok|ast|hl|ir|i|it|eval|test) [FILE | -s STR] [ARGS...]
 
 Arguments:
   FILE          Source file.
@@ -29,6 +29,49 @@ from ug.parsing.ug.tokenizer import tokenizer
 from ug.compile.topy import evaluate
 from ug.format import errors
 from ug.format.displayrules import ugdescr, ast_rules, hl_rules
+
+
+qq = """
+
+quasiquote_tr =
+    ;; quasiquote macro transformer (calling quasiquote_tr will not
+    ;; evaluate anything unless the transformer is used to implement a
+    ;; macro). If we were to implement the "." operator as a
+    ;; quasiquote macro (using quasiquote_tr), then:
+
+    ;; a = .(1)        ;; a <- #value[1]
+    ;; b = .(x + y)    ;; b <- #oper["+", "x", "y"]
+    ;; c = .(x y)      ;; c <- #juxt["x", "y"]
+    ;; d = .(^a ^b)    ;; d <- #juxt[#value[1], #juxt["x", "y"]]
+    ;; e = .(^=1 ^b)   ;; d <- #juxt[#value[1], #juxt["x", "y"]]
+
+    ;; In other words, ^x inserts x in the AST directly, whereas ^=x
+    ;; inserts #value[x] (UG keeps a strict discipline that any
+    ;; literal, even integers or strings, must be wrapped with #value)
+
+    #oper["^", #value[v], expr] when (v == Void) ->
+        expr
+    #oper["^=", #value[v], expr] when (v == Void) ->
+        #juxt[#value[#value], #square[expr]]
+    #oper[op, x, y] ->
+        #juxt[#value[#oper], #square[quasiquote_tr op, quasiquote_tr x, quasiquote_tr y]]
+    #juxt[*args] ->
+        #juxt[#value[#juxt], #square (args map quasiquote_tr)]
+    #square[*args] ->
+        #juxt[#value[#square], #square (args map quasiquote_tr)]
+    #begin[*args] ->
+        #juxt[#value[#begin], #square (args map quasiquote_tr)]
+    #curly[*args] ->
+        #juxt[#value[#curly], #square (args map quasiquote_tr)]
+    #value[x] ->
+        #juxt[#value[#value], #square[#value[x]]]
+    str s ->
+        #juxt[#value[symbol], #square[#value[s]]]
+
+addmacro[".", [env, node, #seq[_, arg]] -> quasiquote_tr arg]
+None
+
+"""
 
 
 def descr2(x, recurse = None):
@@ -118,23 +161,41 @@ def x_hl(s, path):
 
 @needs_source
 def x_ir(s, path):
+    rules = RB()
     ast = parse(Source(s, url = path))
     result = compile(ast)
     pr = boxy_terminus()
     rules.css_border(".{!located}", "4px solid red")
     pr(result, rules = ast_rules, descr = ugdescr)
+    # pr(result, descr = ugdescr)
 
 @needs_source
 def x_eval(s, path):
+    exec_command(qq, {})
     src = Source(s, url = path)
     ast = parse(src)
     ast2 = compile(ast)
     print(evaluate(ast2, source = src))
 
+def exec_command(command, env = None):
+    env = env or {}
+    src = Source(command, url = "<string>")
+    ast = parse(src)
+    ast2 = compile(ast, False)
+    try:
+        result = evaluate(ast2, source = src, d = env)
+        if result is not None:
+            print(repr(result))
+    except Exception as e:
+        print("!!!", e)
+
 def x_i(args):
     import readline
     env = {}
     print("Unholy Grail 0.0")
+
+    exec_command(qq, env)
+
     while 1:
         try:
             command = input("<> ")
@@ -143,18 +204,7 @@ def x_i(args):
             break
         if not command:
             continue
-        src = Source(command, url = "<string>")
-        ast = parse(src)
-        ast2 = compile(ast, False)
-        try:
-            result = evaluate(ast2, source = src, d = env)
-            if result is not None:
-                print(repr(result))
-        except Exception as e:
-            print("!!!", e)
-        # for k, v in env.items():
-        #     if v == 1234:
-        #         print(k, v)
+        exec_command(command)
 
 def x_it(args):
     pass

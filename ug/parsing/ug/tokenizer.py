@@ -124,6 +124,7 @@ standard_matchers = [
     subtok_rule("t", rx_without("to", chr_id), ["infix", 0]),
     subtok_rule("b", rx_without("by", chr_id), ["infix", 0]),
     subtok_rule("m", rx_without("mod", chr_id), ["infix", 0]),
+    subtok_rule("g", rx_without("gen", chr_id), ["infix", 0]),
     subtok_rule("m", rx_without("map", chr_id), ["infix", 0]),
     subtok_rule("e", rx_without("each", chr_id), ["infix", 0]),
     subtok_rule("w", rx_without("when", chr_id), ["infix", 0]),
@@ -145,6 +146,9 @@ standard_matchers = [
     subtok_rule(numchars, "(%s)" % (rx_num), ["id", "num10", 1, None, None]),
     subtok_rule(".", "%s" % (rx_dec), ["id", "num10", None, 1, None]),
 
+    # Character
+    subtok_rule("'", "'(.)", ["id", "char", 1]),
+
     # Operators
     subtok_rule('"', "\"", ["prefix", 0], ws = (True, False), action = ["push", "string"]),
     subtok_rule("([{", "\\(|\\[|\\{", ["prefix", 0], action = ["push", "inbrack"]),
@@ -157,7 +161,7 @@ standard_matchers = [
     subtok_rule("=", rx_without("=", chr_op), ["infix", 0]),
     subtok_rule("-", rx_without("->", chr_op), ["infix", 0]),
     subtok_rule(".", rx_without("\\.", chr_op), ["prefix", 0]),
-    subtok_rule("$", rx_without("\\$", chr_op), ["prefix", 0]),
+    # subtok_rule("$", rx_without("\\$", chr_op), ["prefix", 0]),
     # subtok_rule("#", rx_without("#", chr_op), ["prefix", 0]),
     subtok_rule("!", "!!", ["infix", 0]),
     subtok_rule("!", "!", ["prefix", 0]),
@@ -220,7 +224,7 @@ def tokenizer_plus_indent(tokenizer):
             indent = tok.args[1]
             if indent > current_indent:
                 indent_stack.append(current_indent)
-                yield Token("infix", [''], (0, 0), loc = tok.loc)
+                yield Token("infix", [''], (1, 1), loc = tok.loc)
                 yield Token("id", [Void], (0, 0), loc = tok.loc)
                 # print("(")
                 yield Token("prefix", ['('], (0, 0), loc = tok.loc)

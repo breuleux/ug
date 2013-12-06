@@ -17,6 +17,13 @@ class ASTException(exc.Exception):
         return str(self)
 
 
+class Char:
+    def __init__(self, ch):
+        self.ch = ch
+    def __str__(self):
+        return self.ch
+
+
 value_void = hs.value(Void)
 
 def mkv(x):
@@ -108,6 +115,8 @@ def make_ast(node):
                     return mkv(int(n, radix))
             elif cmd == 'str':
                 return hs.string(args[0])
+            elif cmd == 'char':
+                return hs.value(Char(args[0]))
             elif cmd == Void:
                 return mkv(Void)
             else:

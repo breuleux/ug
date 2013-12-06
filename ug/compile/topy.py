@@ -1,13 +1,17 @@
 
 from functools import reduce
+from collections import OrderedDict
 import ast as pyast
 pycompile = compile
 
 from . import lib
 from ..lib import (hashstruct as hs, anonstruct, attrdict, hybrid, index,
                    hastag, struct, tag, gettag)
-from ..parsing.ug.ast import ASTVisitor, Void, transloc, transfer, getloc, hasloc
+from ..parsing import parse, Source
+from ..parsing.ug.ast import ASTVisitor, Void, transloc, transfer, getloc, hasloc, Char
 from .compile import UniqueVar, hs2
+from .main import compile as ugcompile
+from .macros import macro
 
 
 # ops = {
@@ -164,9 +168,9 @@ class UGToPy(ASTVisitor):
         #     raise Exception("unknown value", value)
         return self.register(r, r, node)
 
-    def visit_special(self, node, value, name):
-        r = hs.Name('%%' + str(value), hs.Load())
-        return self.register(r, r, node)
+    # def visit_special(self, node, value, name):
+    #     r = hs.Name('%%' + str(value), hs.Load())
+    #     return self.register(r, r, node)
 
     def visit_seq(self, node, *args, name = None):
         newargs = [self.visit(arg, name) for arg in args]
@@ -176,6 +180,9 @@ class UGToPy(ASTVisitor):
                        None,
                        None)
         return self.assign_and_register(c, node)
+
+    def visit_pair(self, node, x, y, name = None):
+        return self.visit(hs.send(hs.value(lib.pair), hs.seq(x, y)), name = name)
 
     def visit_send(self, node, obj, msg, name):
 
@@ -495,6 +502,77 @@ def evaluate(ast, source = None, d = None):
     exec(code1, d)
     return eval(code2, d)
     # return d['F']()
+
+
+def ugeval(x):
+    if isinstance(x, str):
+        src = Source(x, url = None)
+        ast = parse(src)
+    else:
+        src = None
+        ast = x
+    ast2 = ugcompile(ast)
+    return evaluate(ast2, source = src)
+
+def ugeval_direct(x):
+    return evaluate(x)
+
+lib.ug_library['Char'] = Char
+lib.ug_library['symbol'] = lib.symbol
+lib.ug_library['delay'] = lib.delay
+lib.ug_library['Source'] = Source
+lib.ug_library['UniqueVar'] = UniqueVar
+lib.ug_library['ugparse'] = parse
+lib.ug_library['ugcompile'] = ugcompile
+lib.ug_library['ugeval'] = ugeval
+lib.ug_library['ugeval_direct'] = ugeval_direct
+lib.ug_library['addmacro'] = lambda name, f: macro(name)(f)
+lib.ug_library['dynlet'] = lib.dynlet
+lib.ug_library['ugtranslations'] = {
+    None: '#f',
+    True: '#t',
+    False: '#f',
+    Void: '__hole',
+
+    lib.symbol: '__symbol',
+    lib.pair: 'cons',
+    lib.delay: 'lazy',
+
+    lib.patch_list: '__patch_vector',
+
+    OrderedDict: '__assoc',
+
+    set: '__set',
+
+    dict: '__table',
+    lib.patch_dict: '__patch_table',
+
+    hybrid: '__hybrid',
+
+    hs: 'Struct',
+    hs.index: 'vector-immutable',
+
+    lib.Deconstructor: 'spec->deconstructor',
+    lib.make_object: '__make_object',
+
+    lib.struct_project: 'p-project',
+    lib.struct_deconstruct: 'p-deconstruct',
+    lib.struct_star: 'p-star',
+    lib.struct_dstar: 'p-dstar',
+    lib.struct_assoc: 'p-assoc',
+    lib.struct_default: 'p-default',
+
+    lib.trycatch: '__catch',
+    lib.escape: '__escape',
+
+    lib.check_equal: '__check_equal',
+    lib.ugwhile: '__while',
+
+    lib.raiser: '__raise',
+    lib.ContinueException: '__continue',
+    lib.BreakException: '__break',
+}
+
 
 
 def pprint(node, offset = 0):

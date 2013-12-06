@@ -24,6 +24,8 @@ class GuardError(UGTypeError):
 class MatchError(UGTypeError):
     pass
 
+SHF = False
+
 
 NoneType = type(None)
 
@@ -31,6 +33,112 @@ hs = hashstruct
 
 ug_library = {}
 rev_ug_library = {}
+
+
+def pair(x, y):
+    return [x, y]
+
+def symbol(x):
+    return x
+
+def struct_project(f, var):
+    return hs.check(f, var)
+
+def struct_deconstruct(f, args):
+    return hs.deconstruct(f, *args)
+
+def struct_star(x):
+    return hs.star(x)
+
+def struct_dstar(x):
+    return hs.dstar(x)
+
+def struct_assoc(k, v):
+    return hs.assoc(k, v)
+
+def struct_default(k, v):
+    return hs.default(k, v)
+
+def delay(fn):
+    raise Exception("no laziness here")
+
+
+class Partial:
+
+    def __init__(self, struct):
+        if isinstance(struct, (list, tuple)):
+            self.struct = hybrid(struct, {})
+        elif isinstance(struct, dict):
+            self.struct = hybrid([], struct)
+        elif isinstance(struct, hybrid):
+            self.struct = struct
+        else:
+            raise Exception
+
+    def merge(self, arg):
+        if isinstance(arg, (list, tuple)):
+            l, d = arg, {}
+        elif isinstance(arg, dict):
+            l, d = [], arg
+        elif isinstance(arg, hybrid):
+            l, d = arg.tuple, arg.dict
+        else:
+            raise Exception
+
+        l0, d0 = self.struct.tuple, self.struct.dict
+
+        usedl = [False for _ in l]
+        usedd = {k: False for k, _ in d.items()}
+
+        newl = []
+        newd = {}
+
+        for x in l0:
+            if isinstance(x, Hole):
+                if isinstance(x.id, int):
+                    v = l[x.id]
+                    usedl[x.id] = True
+                else:
+                    v = d[x.id]
+                    usedd[x.id] = True
+
+                if x.star == "*":
+                    newl += v
+                elif x.star == "**":
+                    newd.update(v)
+                else:
+                    newl.append(v)
+            else:
+                newl.append(x)
+
+        for k, x in d0.items():
+            if isinstance(x, Hole):
+                if isinstance(x.id, int):
+                    v = l[x.id]
+                    usedl[x.id] = True
+                else:
+                    v = d[x.id]
+                    usedd[x.id] = True
+                    
+                newd[k] = v
+            else:
+                newd[k] = x
+
+        return hybrid(newl, newd)
+
+    def __str__(self):
+        return 'Partial %s' % self.struct
+    def __repr__(self):
+        return 'Partial %s' % self.struct
+
+class Hole:
+    def __init__(self, id, star = ""):
+        self.id = id
+        self.star = star
+    def __str__(self):
+        return '%s_%s' % (self.star, self.id)
+    def __repr__(self):
+        return '%s_%s' % (self.star, self.id)
 
 
 def library_function(name):
@@ -104,12 +212,12 @@ for name, name_in_module in operators:
 
 @library_function("in")
 def ugin(a, b):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     return a in b
 
 
 def _convert_formula(f):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
 
     if isinstance(f, (tuple, list)):
         new = []
@@ -212,7 +320,7 @@ def _convert_formula(f):
 
 
 def _deconstruct(f, dctor, value):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
 
     if dctor is None:
         if isinstance(value, (tuple, list, dict, hybrid)):
@@ -230,7 +338,7 @@ def _deconstruct(f, dctor, value):
             pattern = f)
 
 def _deconstruct2(value, f):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
 
     if isinstance(f, str):
         return (value,)
@@ -323,19 +431,19 @@ def _deconstruct2(value, f):
 @library_function("@")
 class Checker:
     def __init__(self, void, f):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         self.f = f
     def __check__(self, value):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         return self.f(value)
     def __call__(self, value):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         return self.f(value)
 
 
 class Raiser:
     def __recv__(self, message):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         raise message
 raiser = Raiser()
 
@@ -344,7 +452,7 @@ library_function("raise")(raiser)
 
 @library_function
 def check(checker, value, pattern = None):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
 
     try:
         checker = getattr(checker, '__check__')
@@ -373,7 +481,7 @@ class check_equal:
     def __init__(self, value):
         self.value = value
     def __check__(self, other):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         if self.value == other:
             return other
         raise UGTypeError['bad_value'](
@@ -389,7 +497,7 @@ class Deconstructor:
         self._formula = _convert_formula(formula)
 
     def __call__(self, value):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         return _deconstruct2(value, self._formula)
 
     def __str__(self):
@@ -402,7 +510,7 @@ class Deconstructor:
 library_function(hybrid)
 library_function(dict)
 library_function(OrderedDict)
-library_function(index)
+# library_function(index)
 library_function("#")(hs)
 
 library_function("pymap")(map)
@@ -417,7 +525,7 @@ library_function("%%list")(lambda *args: list(args))
 
 @library_function
 def send(obj, msg):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     try:
         f = type(obj).__recv__
     except AttributeError:
@@ -429,22 +537,27 @@ def send(obj, msg):
             return obj(*msg.tuple, **msg.dict)
         elif isinstance(msg, str):
             return getattr(obj, msg)
-        elif isinstance(msg, index):
-            if msg.item is to:
+        elif isinstance(msg, hs.index):
+            if msg[0] is to:
                 return obj[:]
-            return obj[msg.item]
+            return obj[msg[0]]
         elif isinstance(msg, hs.assign):
             m, v = msg[:]
             if isinstance(m, str):
                 return setattr(obj, m, v)
-            elif isinstance(m, index):
-                if m.item is to:
+            elif isinstance(m, hs.index):
+                if m[0] is to:
                     obj[:] = v
                 else:
-                    obj[m.item] = v
+                    obj[m[0]] = v
                 return None
             else:
                 return obj.__recv__(msg)
+        elif isinstance(msg, Partial):
+            def part(*args, **kwargs):
+                return send(obj, msg.merge(hybrid(args, kwargs)))
+            return part
+
         # print(obj)
         raise
     else:
@@ -483,7 +596,7 @@ def send(obj, msg):
 
 @library_function
 def send_safeguard(obj, msg):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     try:
         f = obj.__recv_safeguard__
     except AttributeError:
@@ -495,8 +608,8 @@ def send_safeguard(obj, msg):
             return hs.ok(obj(*msg.tuple, **msg.dict))
         elif isinstance(msg, str):
             return hs.ok(getattr(obj, msg))
-        elif isinstance(msg, index):
-            return hs.ok(obj[msg.item])
+        elif isinstance(msg, hs.index):
+            return hs.ok(obj[msg[0]])
         raise
     else:
         return f(msg)
@@ -506,7 +619,11 @@ library_function("chain")(itertools.chain)
 
 @library_function("map")
 def ugmap(seq, obj):
-    _SHOW_FRAME = False
+    return list(uggen(seq, obj))
+
+@library_function("gen")
+def uggen(seq, obj):
+    _SHOW_FRAME = SHF
     for entry in seq:
         try:
             result = send_safeguard(obj, entry)
@@ -528,7 +645,7 @@ def ugmap(seq, obj):
 
 @library_function("each")
 def ugeach(seq, obj):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     result = None
     for entry in seq:
         try:
@@ -551,7 +668,8 @@ def ugeach(seq, obj):
 
 @library_function("while")
 def ugwhile(test, body):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
+    result = None
     while test():
         try:
             result = body()
@@ -572,7 +690,7 @@ def ugwhile(test, body):
 
 @library_function
 def patch_dict(*args):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if len(args) == 0:
         return {}
     else:
@@ -583,7 +701,7 @@ def patch_dict(*args):
 
 @library_function
 def patch_odict(*args):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if len(args) == 0:
         return OrderedDict()
     else:
@@ -594,7 +712,7 @@ def patch_odict(*args):
 
 @library_function
 def patch_tuple(*args):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if len(args) == 0:
         return ()
     elif len(args) == 1:
@@ -604,7 +722,7 @@ def patch_tuple(*args):
 
 @library_function
 def patch_list(*args):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if len(args) == 0:
         return ()
     elif len(args) == 1:
@@ -614,9 +732,9 @@ def patch_list(*args):
 
 @library_function
 def assign(obj, item, value):
-    _SHOW_FRAME = False
-    if isinstance(item, index):
-        obj[item.item] = value
+    _SHOW_FRAME = SHF
+    if isinstance(item, hs.index):
+        obj[item[0]] = value
     elif isinstance(item, str):
         setattr(obj, item, value)
     else:
@@ -626,7 +744,7 @@ def assign(obj, item, value):
 class ugobj:
 
     def __call__(self, *args, **kwargs):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         if kwargs:
             if args:
                 return self.__recv__(hybrid(args, kwargs))
@@ -636,26 +754,26 @@ class ugobj:
             return self.__recv__(args)
 
     def __getattr__(self, attr):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         if attr.startswith('__'):
             return getattr(super(), attr)
         else:
             return self.__recv__(attr)
 
     def __getitem__(self, item):
-        _SHOW_FRAME = False
-        return self.__recv__(index(item))
+        _SHOW_FRAME = SHF
+        return self.__recv__(hs.index(item))
 
     def __setattr__(self, attr, value):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         if attr.startswith('__'):
             setattr(super(), attr, value)
         else:
             return self.__recv__(hs.assign(attr, value))
 
     def __setitem__(self, item, value):
-        _SHOW_FRAME = False
-        return self.__recv__(hs.assign(index(item), value))
+        _SHOW_FRAME = SHF
+        return self.__recv__(hs.assign(hs.index(item), value))
 
 
 class uglitobj(ugobj):
@@ -669,7 +787,7 @@ def make_object(*specifications):
         __ugspecs__ = specifications
 
         def __recv_safeguard__(self, arg):
-            _SHOW_FRAME = False
+            _SHOW_FRAME = SHF
             errors = []
             guards = []
             for deconstructor, guard, f in specifications:
@@ -687,7 +805,7 @@ def make_object(*specifications):
             return hs.guard_fail(guards)
 
         def __recv__(self, arg):
-            _SHOW_FRAME = False
+            _SHOW_FRAME = SHF
             errors = []
             for deconstructor, guard, f in specifications:
                 try:
@@ -706,7 +824,7 @@ def make_object(*specifications):
 
 @library_function
 def do(gen):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     for x in gen:
         pass
 
@@ -721,7 +839,7 @@ def to(start, end):
 
 @library_function("by")
 def by(r, step):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if isinstance(r, slice):
         return slice(r.start, r.stop, step)
     elif isinstance(r, range):
@@ -734,7 +852,7 @@ def by(r, step):
 
 @library_function
 def trycatch(thunk, handler, else_, finally_):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     try:
         rval = thunk()
     except Exception as e:
@@ -752,32 +870,36 @@ def trycatch(thunk, handler, else_, finally_):
         if finally_:
             finally_()
 
+@library_function
+def escape(f):
+    raise Exception("unsupported")
+
 
 library_function("nonzero")(bool)
 
 
 @library_function
 def apply_guard(guard):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if not guard():
         raise GuardError(guard = guard)
 
 
 class ugtuple(tuple):
     def __init__(self, t):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         super().__init__(t)
         self.__tags__ = {}
 
 class uglist(list):
     def __init__(self, t):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         super().__init__(t)
         self.__tags__ = {}
 
 @library_function
 def maytag(obj, name, value):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     if isinstance(obj, tuple):
         obj = ugtuple(obj)
     elif isinstance(obj, list):
@@ -794,7 +916,7 @@ def maytag(obj, name, value):
 
 @library_function
 def make_class(bases, elements):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     d = {}
     for k, v in elements.items():
         if isinstance(v, uglitobj):
@@ -818,14 +940,14 @@ def make_class(bases, elements):
 
 @library_function
 def setattribute(x, attr, value):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     setattr(x, attr, value)
     return x
 
 
 @library_function
 def imp(specifications):
-    _SHOW_FRAME = False
+    _SHOW_FRAME = SHF
     results = []
     for entry in specifications:
         if isinstance(entry, str):
@@ -838,6 +960,11 @@ def imp(specifications):
 
 
 library_function(struct)
+
+
+@library_function
+def dynlet(variables, body):
+    return body()
 
 
 class Wrap(ugobj):
@@ -873,7 +1000,7 @@ class Frz(ugobj):
     def __recv_safeguard__(self, message):
         return hs.ok(self.__recv__(message))
     def __recv__(self, message):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         # print(message)
         if isinstance(message, list):
             return tuple(message)
@@ -885,6 +1012,8 @@ class Frz(ugobj):
             return frozendict(message)
         elif isinstance(message, (tuple, frozenset, frozendict, frozenOrderedDict)):
             return message
+        elif isinstance(message, ugobj):
+            return send(message, frz)()
         else:
             return message.__frz__()
 
@@ -892,7 +1021,7 @@ class Mut(ugobj):
     def __recv_safeguard__(self, message):
         return hs.ok(self.__recv__(message))
     def __recv__(self, message):
-        _SHOW_FRAME = False
+        _SHOW_FRAME = SHF
         # print(message)
         if isinstance(message, tuple):
             return list(message)
@@ -907,6 +1036,7 @@ class Mut(ugobj):
         else:
             return message.__mut__()
 
-library_function("frz")(Frz())
+frz = Frz()
+library_function("frz")(frz)
 library_function("mut")(Mut())
 
